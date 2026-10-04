@@ -1,4 +1,6 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mountTaskApp } from "../src/taskApp";
 import type { Task } from "../src/taskStore";
 import {
   loadTasks,
@@ -28,6 +30,35 @@ function createStorage(): Storage {
       data.set(key, value);
     },
   };
+}
+
+function mountFreshApp(): void {
+  document.body.innerHTML = `<main id="app"></main>`;
+  const root = document.querySelector<HTMLElement>("#app");
+  if (!root) {
+    throw new Error("Missing #app");
+  }
+  mountTaskApp(root);
+}
+
+function submitTaskTitle(title: string): void {
+  const input = document.querySelector<HTMLInputElement>(
+    'input[aria-label="Task title"]',
+  );
+  if (!input) {
+    throw new Error("Task entry control not found");
+  }
+  input.value = title;
+  input.form?.requestSubmit();
+}
+
+function listItemWithTitle(title: string): HTMLLIElement {
+  const items = [...document.querySelectorAll<HTMLLIElement>("ul li")];
+  const item = items.find((li) => li.textContent?.includes(title));
+  if (!item) {
+    throw new Error(`List item with title "${title}" not found`);
+  }
+  return item;
 }
 
 describe("task persistence", () => {
@@ -60,5 +91,31 @@ describe("task persistence", () => {
 
     localStorage.setItem(TASKS_STORAGE_KEY, '{"wrong":true}');
     expect(loadTasks()).toEqual([]);
+  });
+
+  it("REQ-12: full page reload restores tasks in the app UI", () => {
+    mountFreshApp();
+    submitTaskTitle("First");
+    submitTaskTitle("Second");
+
+    const secondItem = listItemWithTitle("Second");
+    const checkbox = secondItem.querySelector<HTMLInputElement>(
+      'input[type="checkbox"]',
+    )!;
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+
+    mountFreshApp();
+
+    expect(
+      listItemWithTitle("First").querySelector<HTMLInputElement>(
+        'input[type="checkbox"]',
+      )?.checked,
+    ).toBe(false);
+    expect(
+      listItemWithTitle("Second").querySelector<HTMLInputElement>(
+        'input[type="checkbox"]',
+      )?.checked,
+    ).toBe(true);
   });
 });
