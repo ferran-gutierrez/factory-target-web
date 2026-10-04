@@ -1,7 +1,8 @@
-const app = document.querySelector<HTMLElement>("#app");
+import { mountTaskApp } from "./taskApp";
 
-if (app) {
-  const heading = document.createElement("h1");
-  heading.textContent = "Factory Target Web";
-  app.append(heading);
+const app = document.querySelector<HTMLElement>("#app");
+if (!app) {
+  throw new Error("Missing #app root");
 }
+
+mountTaskApp(app);
