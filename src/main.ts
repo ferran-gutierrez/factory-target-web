@@ -1,7 +1,4 @@
-const app = document.querySelector<HTMLElement>("#app");
+import { mountApp } from "./mount";
 
-if (app) {
-  const heading = document.createElement("h1");
-  heading.textContent = "Factory Target Web";
-  app.append(heading);
-}
+const app = document.querySelector<HTMLElement>("#app");
+mountApp(app);
