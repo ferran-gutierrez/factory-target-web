@@ -4,18 +4,29 @@ export type Task = {
   id: string;
   title: string;
   completed: boolean;
+  dueDate?: string;
 };
 
 export type TaskStore = {
   getTasks: () => Task[];
-  addTask: (title: string) => boolean;
+  addTask: (title: string, dueDate?: string) => boolean;
   updateTaskTitle: (id: string, title: string) => boolean;
+  updateTask: (id: string, title: string, dueDate?: string) => boolean;
   setTaskCompleted: (id: string, completed: boolean) => boolean;
   deleteTask: (id: string, confirmed: boolean) => boolean;
 };
 
 function newId(): string {
   return crypto.randomUUID();
+}
+
+function taskWithoutDueDate(task: Task): Task {
+  const next: Task = {
+    id: task.id,
+    title: task.title,
+    completed: task.completed,
+  };
+  return next;
 }
 
 export function createTaskStore(): TaskStore {
@@ -30,12 +41,21 @@ export function createTaskStore(): TaskStore {
       return tasks;
     },
 
-    addTask(title: string) {
+    addTask(title: string, dueDate?: string) {
       const trimmed = title.trim();
       if (trimmed.length === 0) {
         return false;
       }
-      tasks = [...tasks, { id: newId(), title: trimmed, completed: false }];
+      const dueTrimmed = dueDate?.trim();
+      const task: Task = {
+        id: newId(),
+        title: trimmed,
+        completed: false,
+      };
+      if (dueTrimmed && dueTrimmed.length > 0) {
+        task.dueDate = dueTrimmed;
+      }
+      tasks = [...tasks, task];
       persist();
       return true;
     },
@@ -46,6 +66,28 @@ export function createTaskStore(): TaskStore {
         return false;
       }
       tasks = tasks.map((t, i) => (i === index ? { ...t, title } : t));
+      persist();
+      return true;
+    },
+
+    updateTask(id: string, title: string, dueDate?: string) {
+      const index = tasks.findIndex((t) => t.id === id);
+      if (index === -1) {
+        return false;
+      }
+      const dueTrimmed = dueDate?.trim();
+      tasks = tasks.map((t, i) => {
+        if (i !== index) {
+          return t;
+        }
+        const next: Task = { ...t, title };
+        if (dueTrimmed && dueTrimmed.length > 0) {
+          next.dueDate = dueTrimmed;
+        } else {
+          return taskWithoutDueDate(next);
+        }
+        return next;
+      });
       persist();
       return true;
     },

@@ -7,11 +7,17 @@ function isTask(value: unknown): value is Task {
     return false;
   }
   const t = value as Record<string, unknown>;
-  return (
-    typeof t.id === "string" &&
-    typeof t.title === "string" &&
-    typeof t.completed === "boolean"
-  );
+  if (
+    typeof t.id !== "string" ||
+    typeof t.title !== "string" ||
+    typeof t.completed !== "boolean"
+  ) {
+    return false;
+  }
+  if (t.dueDate !== undefined && typeof t.dueDate !== "string") {
+    return false;
+  }
+  return true;
 }
 
 export function loadTasks(): Task[] {
