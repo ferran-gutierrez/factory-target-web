@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-test("home page shows the app heading", async ({ page }) => {
+test("home page shows the world map", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Factory Target Web");
+  await expect(page.locator("#app svg")).toHaveCount(1);
+  await expect(page.locator("#app svg path")).not.toHaveCount(0);
 });
