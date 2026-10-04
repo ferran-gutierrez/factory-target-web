@@ -99,7 +99,70 @@ describe("REQ-7 hover highlight exclusivity", () => {
   );
 });
 
+async function findInteriorSvgPoint(
+  page: import("playwright").Page,
+): Promise<{ x: number; y: number }> {
+  return page.evaluate(() => {
+    const svg = document.querySelector("#app svg");
+    if (!(svg instanceof SVGSVGElement)) {
+      throw new Error("World map SVG is missing");
+    }
+
+    const rect = svg.getBoundingClientRect();
+    for (let yRatio = 0.1; yRatio <= 0.9; yRatio += 0.04) {
+      for (let xRatio = 0.05; xRatio <= 0.95; xRatio += 0.04) {
+        const x = rect.left + rect.width * xRatio;
+        const y = rect.top + rect.height * yRatio;
+        const target = document.elementFromPoint(x, y);
+        if (target === svg) {
+          return { x, y };
+        }
+        if (
+          target instanceof Element &&
+          svg.contains(target) &&
+          target.closest("path[data-country-code]") === null
+        ) {
+          return { x, y };
+        }
+      }
+    }
+
+    throw new Error("Could not find an interior SVG point away from country paths");
+  });
+}
+
 describe("REQ-8 hover leave clears highlight and label", () => {
+  it(
+    "returns to the initial neutral state when the pointer leaves a country onto empty map space",
+    { timeout: 60_000 },
+    async () => {
+      await withWorldMapPage(async (page) => {
+        await gotoWorldMapHome(page);
+
+        const target = mapCountries.find((entry) => entry.code === "ES");
+        expect(target).toBeDefined();
+
+        const path = page.locator(
+          `#app svg path[data-country-code="${target!.code}"]`,
+        );
+        await path.hover();
+        await playwrightExpect(page.getByTestId("country-name")).toHaveText(
+          target!.name,
+        );
+        expect(await isPathHighlighted(page, target!.code)).toBe(true);
+
+        const interiorPoint = await findInteriorSvgPoint(page);
+        await page.mouse.move(interiorPoint.x, interiorPoint.y);
+        await page.waitForTimeout(50);
+
+        expect(await countHighlightedPaths(page)).toBe(0);
+        const label =
+          (await page.getByTestId("country-name").textContent()) ?? "";
+        expect(isNeutralCountryName(label)).toBe(true);
+      });
+    },
+  );
+
   it(
     "returns to the initial neutral state when the pointer leaves the map",
     { timeout: 60_000 },

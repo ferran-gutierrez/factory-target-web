@@ -64,10 +64,23 @@ function setHighlight(code: string | null): void {
   countryName.textContent = "Hover over a country";
 }
 
+function isCountryPathTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest("path[data-country-code]") !== null
+  );
+}
+
 for (const entry of mapCountries) {
   const path = pathsByCode.get(entry.code);
   path?.addEventListener("mouseenter", () => {
     setHighlight(entry.code);
+  });
+  path?.addEventListener("mouseleave", (event) => {
+    if (isCountryPathTarget(event.relatedTarget)) {
+      return;
+    }
+    setHighlight(null);
   });
 }
 
