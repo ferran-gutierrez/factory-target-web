@@ -4,6 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Factory Target Web</title>
+    <style>
+      #app svg path[data-country-code] {
+        fill: #b8c5d6;
+        stroke: #475569;
+        stroke-width: 0.25;
+        vector-effect: non-scaling-stroke;
+      }
+
+      #app svg path[data-country-code].world-map-highlight,
+      #app svg path[data-country-code][data-highlighted="true"] {
+        fill: #2563eb;
+        stroke: #1e40af;
+        stroke-width: 0.5;
+      }
+    </style>
   </head>
   <body>
     <main id="app"></main>

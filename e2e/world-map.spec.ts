@@ -20,6 +20,7 @@ test.describe("world map journey", () => {
     await page.goto("/");
 
     const france = page.locator('[data-country-code="FRA"]').first();
+    const fillBeforeHover = await france.evaluate((el) => getComputedStyle(el).fill);
     await france.hover();
 
     const label = page.getByTestId(COUNTRY_LABEL_TEST_ID);
@@ -29,6 +30,10 @@ test.describe("world map journey", () => {
     const className = await france.getAttribute("class");
     const dataHighlighted = await france.getAttribute("data-highlighted");
     expect(isHighlightedCountryPath(className, dataHighlighted)).toBe(true);
+
+    const fillAfterHover = await france.evaluate((el) => getComputedStyle(el).fill);
+    expect(fillAfterHover).not.toBe(fillBeforeHover);
+    await expect(france).toHaveCSS("fill", "rgb(37, 99, 235)");
   });
 
   test("REQ-8: sequential hovers show France, Egypt, and Australia", async ({ page }) => {
