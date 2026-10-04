@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
@@ -40,8 +41,34 @@ async function releaseServer(): Promise<void> {
   }
 }
 
+let browsersInstalled = false;
+
+function installChromiumIfNeeded(): void {
+  if (browsersInstalled) {
+    return;
+  }
+
+  const result = spawnSync(
+    "npx",
+    ["playwright", "install", "chromium"],
+    {
+      cwd: projectRoot,
+      encoding: "utf8",
+      stdio: "pipe",
+    },
+  );
+
+  if (result.status !== 0) {
+    const detail = result.stderr || result.stdout || "unknown error";
+    throw new Error(`Failed to install Playwright Chromium: ${detail}`);
+  }
+
+  browsersInstalled = true;
+}
+
 async function ensureBrowser(): Promise<Browser> {
   if (!sharedBrowser) {
+    installChromiumIfNeeded();
     sharedBrowser = await chromium.launch();
   }
   return sharedBrowser;
