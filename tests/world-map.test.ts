@@ -1,5 +1,5 @@
 /**
- * REQ-3 reference paths in fixtures/natural-earth-admin0-path-d-by-iso-a3.json use
+ * REQ-3 reference paths in fixtures/natural-earth-admin0-path-d-shard-*.json use
  * equirectangular projection (1000×500, two decimal places) from Natural Earth
  * ne_10m_admin_0_countries without vertex dropping.
  */
@@ -10,12 +10,20 @@ import { describe, expect, it } from "vitest";
 
 import { NATURAL_EARTH_10M_ADMIN0_FEATURE_COUNT, NATURAL_EARTH_COUNTRY_MANIFEST } from "./fixtures/natural-earth-country-manifest";
 
-const referencePathDByIsoA3 = JSON.parse(
-  readFileSync(
-    join(fileURLToPath(new URL(".", import.meta.url)), "fixtures/natural-earth-admin0-path-d-by-iso-a3.json"),
-    "utf8",
-  ),
-) as Record<string, string[]>;
+function loadReferencePathDByIsoA3(): Record<string, string[]> {
+  const fixturesDir = join(fileURLToPath(new URL(".", import.meta.url)), "fixtures");
+  const shardFiles = readdirSync(fixturesDir)
+    .filter((name) => /^natural-earth-admin0-path-d-shard-\d+\.json$/.test(name))
+    .sort((a, b) => a.localeCompare(b));
+
+  const merged: Record<string, string[]> = {};
+  for (const file of shardFiles) {
+    Object.assign(merged, JSON.parse(readFileSync(join(fixturesDir, file), "utf8")) as Record<string, string[]>);
+  }
+  return merged;
+}
+
+const referencePathDByIsoA3 = loadReferencePathDByIsoA3();
 import { buildWorldMapSvg } from "../src/world-map/render-world-map";
 import { getCountryFeatures } from "../src/world-map/countries";
 
