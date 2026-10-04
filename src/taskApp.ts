@@ -1,3 +1,4 @@
+import { isTaskOverdue, localCalendarDay, sortTasksByDueDate } from "./taskDates";
 import {
   EMPTY_STATE_MESSAGE,
   filterTasks,
@@ -6,9 +7,12 @@ import {
 } from "./taskFilters";
 import { createTaskStore, type Task } from "./taskStore";
 
+type SortMode = "creation" | "due";
+
 export function mountTaskApp(app: HTMLElement): void {
   const store = createTaskStore();
   let filter: TaskFilter = "all";
+  let sortMode: SortMode = "creation";
   let editingId: string | null = null;
 
   const heading = document.createElement("h1");
@@ -22,11 +26,14 @@ export function mountTaskApp(app: HTMLElement): void {
   taskInput.id = "task-title";
   taskInput.setAttribute("aria-label", "Task title");
 
+  const addDueDateInput = document.createElement("input");
+  addDueDateInput.type = "date";
+
   const addButton = document.createElement("button");
   addButton.type = "submit";
   addButton.textContent = "Add task";
 
-  form.append(taskInput, addButton);
+  form.append(taskInput, addDueDateInput, addButton);
 
   const filterBar = document.createElement("div");
   filterBar.setAttribute("role", "group");
@@ -50,16 +57,38 @@ export function mountTaskApp(app: HTMLElement): void {
   const filterDone = makeFilterButton("Done", "done");
   filterBar.append(filterAll, filterActive, filterDone);
 
+  const sortBar = document.createElement("div");
+  sortBar.setAttribute("role", "group");
+  sortBar.setAttribute("aria-label", "Task sort");
+
+  function makeSortButton(label: string, value: SortMode): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = label;
+    btn.setAttribute("aria-pressed", value === sortMode ? "true" : "false");
+    btn.addEventListener("click", () => {
+      sortMode = value;
+      render();
+    });
+    return btn;
+  }
+
+  const sortCreation = makeSortButton("Creation order", "creation");
+  const sortDue = makeSortButton("Due date", "due");
+  sortBar.append(sortCreation, sortDue);
+
   const list = document.createElement("ul");
   const emptyState = document.createElement("p");
   emptyState.hidden = true;
 
-  app.replaceChildren(heading, form, filterBar, list, emptyState);
+  app.replaceChildren(heading, form, filterBar, sortBar, list, emptyState);
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (store.addTask(taskInput.value)) {
+    const due = addDueDateInput.value.trim();
+    if (store.addTask(taskInput.value, due.length > 0 ? due : undefined)) {
       taskInput.value = "";
+      addDueDateInput.value = "";
     }
     render();
   });
@@ -74,9 +103,18 @@ export function mountTaskApp(app: HTMLElement): void {
     }
   }
 
+  function updateSortButtons(): void {
+    sortCreation.setAttribute(
+      "aria-pressed",
+      sortMode === "creation" ? "true" : "false",
+    );
+    sortDue.setAttribute("aria-pressed", sortMode === "due" ? "true" : "false");
+  }
+
   function renderTaskItem(task: Task): HTMLLIElement {
     const item = document.createElement("li");
     const isEditing = editingId === task.id;
+    const referenceDay = localCalendarDay();
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
@@ -101,16 +139,40 @@ export function mountTaskApp(app: HTMLElement): void {
       editLabel.htmlFor = editInput.id;
       editLabel.textContent = "Edit task title";
 
+      const dueInput = document.createElement("input");
+      dueInput.type = "date";
+      dueInput.value = task.dueDate ?? "";
+
+      const clearDueButton = document.createElement("button");
+      clearDueButton.type = "button";
+      clearDueButton.textContent = "Clear due date";
+      clearDueButton.addEventListener("click", () => {
+        dueInput.value = "";
+      });
+
       const saveButton = document.createElement("button");
       saveButton.type = "button";
       saveButton.textContent = "Save";
       saveButton.addEventListener("click", () => {
-        store.updateTaskTitle(task.id, editInput.value);
+        const due = dueInput.value.trim();
+        store.updateTask(
+          task.id,
+          editInput.value,
+          due.length > 0 ? due : undefined,
+        );
         editingId = null;
         render();
       });
 
-      item.append(checkbox, titleHint, editLabel, editInput, saveButton);
+      item.append(
+        checkbox,
+        titleHint,
+        editLabel,
+        editInput,
+        dueInput,
+        clearDueButton,
+        saveButton,
+      );
     } else {
       const titleSpan = document.createElement("span");
       titleSpan.textContent = task.title;
@@ -132,7 +194,22 @@ export function mountTaskApp(app: HTMLElement): void {
         render();
       });
 
-      item.append(checkbox, titleSpan, editButton, deleteButton);
+      item.append(checkbox, titleSpan);
+
+      if (task.dueDate) {
+        const dueEl = document.createElement("time");
+        dueEl.setAttribute("aria-label", `Due date ${task.dueDate}`);
+        dueEl.textContent = task.dueDate;
+        item.append(dueEl);
+      }
+
+      if (isTaskOverdue(task, referenceDay)) {
+        const overdueEl = document.createElement("em");
+        overdueEl.textContent = "Overdue";
+        item.append(overdueEl);
+      }
+
+      item.append(editButton, deleteButton);
     }
 
     return item;
@@ -140,7 +217,11 @@ export function mountTaskApp(app: HTMLElement): void {
 
   function render(): void {
     updateFilterButtons();
-    const visible = filterTasks(store.getTasks(), filter);
+    updateSortButtons();
+    let visible = filterTasks(store.getTasks(), filter);
+    if (sortMode === "due") {
+      visible = sortTasksByDueDate(visible);
+    }
     list.replaceChildren(...visible.map(renderTaskItem));
 
     const showEmpty = shouldShowEmptyState(visible.length);

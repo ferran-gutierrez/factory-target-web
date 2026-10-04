@@ -8,6 +8,8 @@ import {
   TASKS_STORAGE_KEY,
 } from "../src/taskPersistence";
 
+type TaskWithDue = Task & { dueDate?: string };
+
 function createStorage(): Storage {
   const data = new Map<string, string>();
   return {
@@ -41,7 +43,7 @@ function mountFreshApp(): void {
   mountTaskApp(root);
 }
 
-function submitTaskTitle(title: string): void {
+function submitTask(title: string, dueDate?: string): void {
   const input = document.querySelector<HTMLInputElement>(
     'input[aria-label="Task title"]',
   );
@@ -49,7 +51,20 @@ function submitTaskTitle(title: string): void {
     throw new Error("Task entry control not found");
   }
   input.value = title;
+  if (dueDate !== undefined) {
+    const dueInput = document.querySelector<HTMLInputElement>(
+      'form[aria-label="Add task"] input[type="date"]',
+    );
+    if (!dueInput) {
+      throw new Error("Add-task due date control not found");
+    }
+    dueInput.value = dueDate;
+  }
   input.form?.requestSubmit();
+}
+
+function submitTaskTitle(title: string): void {
+  submitTask(title);
 }
 
 function listItemWithTitle(title: string): HTMLLIElement {
@@ -66,7 +81,7 @@ describe("task persistence", () => {
     vi.stubGlobal("localStorage", createStorage());
   });
 
-  it("REQ-12: persists tasks in localStorage and restores titles and completion after reload", () => {
+  it("persists tasks in localStorage and restores titles and completion", () => {
     const tasks: Task[] = [
       { id: "id-1", title: "First", completed: false },
       { id: "id-2", title: "Second", completed: true },
@@ -83,7 +98,7 @@ describe("task persistence", () => {
     expect(restored).toEqual(tasks);
   });
 
-  it("REQ-12: missing or corrupt storage starts from an empty list", () => {
+  it("missing or corrupt storage starts from an empty list", () => {
     expect(loadTasks()).toEqual([]);
 
     localStorage.setItem(TASKS_STORAGE_KEY, "{not-json");
@@ -93,7 +108,7 @@ describe("task persistence", () => {
     expect(loadTasks()).toEqual([]);
   });
 
-  it("REQ-12: full page reload restores tasks in the app UI", () => {
+  it("full page reload restores tasks in the app UI", () => {
     mountFreshApp();
     submitTaskTitle("First");
     submitTaskTitle("Second");
@@ -117,5 +132,75 @@ describe("task persistence", () => {
         'input[type="checkbox"]',
       )?.checked,
     ).toBe(true);
+  });
+
+  it("REQ-11: persisted JSON includes optional dueDate when set", () => {
+    const tasks: TaskWithDue[] = [
+      { id: "a", title: "With date", completed: false, dueDate: "2026-03-01" },
+      { id: "b", title: "Without", completed: false },
+    ];
+
+    saveTasks(tasks);
+
+    const raw = localStorage.getItem(TASKS_STORAGE_KEY);
+    expect(raw).toContain('"dueDate":"2026-03-01"');
+    expect(loadTasks()).toEqual(tasks);
+  });
+
+  it("REQ-11: reload restores due dates and overdue marking for active past-due tasks", () => {
+    mountFreshApp();
+    submitTask("Overdue item", "2000-06-01");
+    submitTask("Future item", "2099-12-31");
+    submitTask("No date item");
+
+    mountFreshApp();
+
+    const overdueRow = listItemWithTitle("Overdue item");
+    expect(overdueRow.textContent).toMatch(/Overdue/i);
+    expect(
+      overdueRow.querySelector('[aria-label^="Due date"]')?.textContent,
+    ).toMatch(/2000-06-01/);
+
+    const futureRow = listItemWithTitle("Future item");
+    expect(futureRow.textContent).not.toMatch(/\bOverdue\b/i);
+    expect(
+      futureRow.querySelector('[aria-label^="Due date"]')?.textContent,
+    ).toMatch(/2099-12-31/);
+
+    expect(
+      listItemWithTitle("No date item").querySelector(
+        '[aria-label^="Due date"]',
+      ),
+    ).toBeNull();
+
+    const restored = loadTasks() as TaskWithDue[];
+    expect(restored.find((t) => t.title === "Overdue item")?.dueDate).toBe(
+      "2000-06-01",
+    );
+    expect(restored.find((t) => t.title === "Future item")?.dueDate).toBe(
+      "2099-12-31",
+    );
+    expect(restored.find((t) => t.title === "No date item")?.dueDate).toBe(
+      undefined,
+    );
+  });
+
+  it("REQ-11: completed past-due task is not marked overdue after reload", () => {
+    mountFreshApp();
+    submitTask("Done but late", "1999-01-01");
+    const item = listItemWithTitle("Done but late");
+    const checkbox = item.querySelector<HTMLInputElement>(
+      'input[type="checkbox"]',
+    )!;
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+
+    mountFreshApp();
+
+    const reloaded = listItemWithTitle("Done but late");
+    expect(reloaded.textContent).not.toMatch(/\bOverdue\b/i);
+    expect(
+      reloaded.querySelector('[aria-label^="Due date"]')?.textContent,
+    ).toMatch(/1999-01-01/);
   });
 });
