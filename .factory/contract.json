@@ -1,0 +1,28 @@
+{
+  "contractVersion": 1,
+  "language": "typescript",
+  "ci": { "runner": "ubuntu-24.04", "node": "22" },
+  "setup": [{ "name": "install", "command": "npm ci --ignore-scripts", "timeoutSec": 300 }],
+  "checks": [
+    { "name": "typecheck", "command": "npm run typecheck", "timeoutSec": 300 },
+    { "name": "unit", "command": "npm test", "timeoutSec": 300 },
+    { "name": "build", "command": "npm run build", "timeoutSec": 300 },
+    { "name": "bundle-budget", "command": "npm run check:size", "timeoutSec": 120 }
+  ],
+  "e2e": {
+    "applies": true,
+    "setup": [{ "name": "browsers", "command": "npx playwright install --with-deps chromium", "timeoutSec": 300 }],
+    "command": { "name": "journey", "command": "npx playwright test --retries=1", "timeoutSec": 600 },
+    "videoGlob": "test-results/**/*.webm",
+    "environmentPatterns": ["Timed out waiting \\d+ms from config\\.webServer", "browserType\\.launch", "EADDRINUSE"]
+  },
+  "paths": {
+    "specsDir": "specs",
+    "allowed": ["src/**", "tests/**", "e2e/**", "specs/**", "index.html", "public/**", "package.json", "package-lock.json"],
+    "protected": ["scripts/**"],
+    "tests": ["tests/**", "e2e/**"],
+    "checkDefinitions": ["playwright.config.ts", "vite.config.ts", "vitest.config.ts", "tsconfig.json"],
+    "sensitive": ["package.json"]
+  },
+  "env": { "required": [] }
+}
