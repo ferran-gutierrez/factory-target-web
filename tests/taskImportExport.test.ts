@@ -234,6 +234,21 @@ describe("task import/export validation", () => {
         { id: "x", title: "Bad due", completed: false, dueDate: 123 },
       ]).ok,
     ).toBe(false);
+    expect(
+      parseImportTasks([
+        { id: 1, title: "Numeric id", completed: false, priority: "normal" },
+      ]).ok,
+    ).toBe(false);
+    expect(
+      parseImportTasks([
+        {
+          id: "x",
+          title: "String completed",
+          completed: "yes",
+          priority: "normal",
+        },
+      ]).ok,
+    ).toBe(false);
   });
 });
 

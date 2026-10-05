@@ -191,6 +191,10 @@ test.describe("task list", () => {
     const accept = await fileInput.getAttribute("accept");
     expect(accept).toBeTruthy();
     expect(accept!).toMatch(/\.json|application\/json/i);
+
+    const fileChooserPromise = page.waitForEvent("filechooser");
+    await importButton.click();
+    await fileChooserPromise;
   });
 
   test("REQ-10: export, clear storage, import, and confirm restores tasks", async ({
@@ -239,8 +243,10 @@ test.describe("task list", () => {
       void dialog.accept();
     });
 
-    const fileInput = page.locator('input[type="file"]');
-    await fileInput.setInputFiles({
+    const fileChooserPromise = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "Import tasks" }).click();
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles({
       name: "tasks-export.json",
       mimeType: "application/json",
       buffer: Buffer.from(exportJson, "utf-8"),
