@@ -82,6 +82,25 @@ function clickFilter(name: "All" | "Active" | "Done"): void {
   btn?.click();
 }
 
+function clickSort(name: "Creation order" | "Due date" | "Priority"): void {
+  const btn = [...document.querySelectorAll("button")].find(
+    (b) => b.textContent === name,
+  );
+  if (!btn) {
+    throw new Error(`Sort control "${name}" not found`);
+  }
+  btn.click();
+}
+
+function simulateFullPageReload(): void {
+  document.body.innerHTML = `<main id="app"></main>`;
+  const root = document.querySelector<HTMLElement>("#app");
+  if (!root) {
+    throw new Error("Missing #app");
+  }
+  mountTaskApp(root);
+}
+
 function submitTaskTitle(title: string): void {
   const input = document.querySelector<HTMLInputElement>(
     'input[aria-label="Task title"]',
@@ -191,23 +210,38 @@ describe("task search UI", () => {
     expect(message).toBeTruthy();
   });
 
-  it("REQ-6: clearing search restores titles for the current completion filter", () => {
+  it("REQ-6: clearing search restores titles for the current completion filter and sort mode", () => {
+    const prioritySortTasks: Task[] = [
+      { id: "1", title: "Buy milk", completed: false, priority: "low" },
+      { id: "2", title: "Walk dog", completed: false, priority: "high" },
+      { id: "3", title: "Alpha chore", completed: false, priority: "normal" },
+      { id: "4", title: "Alpha done", completed: true, priority: "normal" },
+    ];
+    saveTasks(prioritySortTasks);
+    mountFreshApp();
+
     clickFilter("Active");
+    clickSort("Priority");
+    const activePriorityOrder = ["Walk dog", "Alpha chore", "Buy milk"];
+    expect(visibleListTitles()).toEqual(activePriorityOrder);
+
     typeSearchQuery("alpha");
     expect(visibleListTitles()).toEqual(["Alpha chore"]);
 
     typeSearchQuery("");
-    expect(visibleListTitles().sort()).toEqual(
-      ["Alpha chore", "Buy milk", "Walk dog"].sort(),
-    );
+    expect(visibleListTitles()).toEqual(activePriorityOrder);
 
     typeSearchQuery("   ");
-    expect(visibleListTitles().sort()).toEqual(
-      ["Alpha chore", "Buy milk", "Walk dog"].sort(),
-    );
+    expect(visibleListTitles()).toEqual(activePriorityOrder);
   });
 
   it("REQ-7: search input is empty after reload and search is not stored in localStorage", () => {
+    const reloadMock = vi.fn(simulateFullPageReload);
+    vi.stubGlobal("location", {
+      ...window.location,
+      reload: reloadMock,
+    });
+
     typeSearchQuery("milk");
     expect(getSearchInput().value).toBe("milk");
 
@@ -219,11 +253,20 @@ describe("task search UI", () => {
       false,
     );
 
-    mountFreshApp();
+    window.location.reload();
+
+    expect(reloadMock).toHaveBeenCalledOnce();
     expect(getSearchInput().value).toBe("");
-    expect(visibleListTitles().sort()).toEqual(
-      ["Alpha chore", "Alpha done", "Buy milk", "Walk dog"].sort(),
-    );
+    expect(visibleListTitles()).toEqual([
+      "Buy milk",
+      "Walk dog",
+      "Alpha chore",
+      "Alpha done",
+    ]);
+
+    vi.unstubAllGlobals();
+    vi.stubGlobal("localStorage", createStorage());
+    saveTasks(searchSampleTasks);
   });
 });
 
