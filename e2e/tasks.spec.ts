@@ -98,7 +98,7 @@ test.describe("task list", () => {
     ).toBeVisible();
   });
 
-  test("REQ-3: due date labels, sort order, edit, clear, and persistence across reload", async ({
+  test("REQ-3 / REQ-14: due date labels, sort order, edit, clear, and persistence across reload", async ({
     page,
   }) => {
     const addForm = page.getByRole("form", { name: "Add task" });
