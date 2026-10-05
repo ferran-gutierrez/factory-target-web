@@ -404,9 +404,13 @@ describe("task persistence", () => {
 
     mountFreshApp();
 
-    const notice = skipNoticeText();
-    expect(notice).toBeTruthy();
-    expect(notice).toMatch(/1/);
+    const noticeEl = skipNoticeElement();
+    expect(noticeEl).not.toBeNull();
+    expect(noticeEl!.getAttribute("role")).toBe("status");
+    expect(noticeEl!.hasAttribute("hidden")).toBe(false);
+    expect(skipNoticeText()).toBe(
+      "1 invalid stored task skipped during load.",
+    );
 
     localStorage.setItem(
       TASKS_STORAGE_KEY,
@@ -417,9 +421,12 @@ describe("task persistence", () => {
     );
     mountFreshApp();
 
-    const allInvalidNotice = skipNoticeText();
-    expect(allInvalidNotice).toBeTruthy();
-    expect(allInvalidNotice).toMatch(/2/);
+    const allInvalidNoticeEl = skipNoticeElement();
+    expect(allInvalidNoticeEl).not.toBeNull();
+    expect(allInvalidNoticeEl!.hasAttribute("hidden")).toBe(false);
+    expect(skipNoticeText()).toBe(
+      "2 invalid stored tasks skipped during load.",
+    );
     expect(document.querySelectorAll("ul li")).toHaveLength(0);
   });
 
