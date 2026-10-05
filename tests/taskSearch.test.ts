@@ -215,9 +215,12 @@ describe("task title search UI", () => {
     clickFilter("All");
 
     submitTaskTitle("Alpha z");
+    submitTaskTitle("Gamma");
     submitTaskTitle("Beta z");
 
     setSearchQuery("z");
-    expect(visibleListTitlesInOrder()).toEqual(["Alpha z", "Beta z"]);
+    const titles = visibleListTitlesInOrder();
+    expect(titles).toEqual(["Alpha z", "Beta z"]);
+    expect(titles).not.toContain("Gamma");
   });
 });
