@@ -101,6 +101,27 @@ function simulateFullPageReload(): void {
   mountTaskApp(root);
 }
 
+function snapshotLocalStorage(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key !== null) {
+      const value = localStorage.getItem(key);
+      if (value !== null) {
+        out[key] = value;
+      }
+    }
+  }
+  return out;
+}
+
+const fullSampleListOrder = [
+  "Buy milk",
+  "Walk dog",
+  "Alpha chore",
+  "Alpha done",
+];
+
 function submitTaskTitle(title: string): void {
   const input = document.querySelector<HTMLInputElement>(
     'input[aria-label="Task title"]',
@@ -242,27 +263,31 @@ describe("task search UI", () => {
       reload: reloadMock,
     });
 
+    localStorage.setItem("factory-target-web.taskSearchQuery", "zz-decoy-query");
+    localStorage.setItem("filterQuery", "another-decoy");
+    simulateFullPageReload();
+
+    expect(getSearchInput().value).toBe("");
+    expect(visibleListTitles()).toEqual(fullSampleListOrder);
+
+    const storageBeforeSearch = snapshotLocalStorage();
+    expect(storageBeforeSearch[TASKS_STORAGE_KEY]).toBeTruthy();
+    expect(storageBeforeSearch["factory-target-web.taskSearchQuery"]).toBe(
+      "zz-decoy-query",
+    );
+    expect(storageBeforeSearch.filterQuery).toBe("another-decoy");
+
     typeSearchQuery("milk");
     expect(getSearchInput().value).toBe("milk");
-
-    const keysBeforeReload = [...Array(localStorage.length)].map((_, i) =>
-      localStorage.key(i),
-    );
-    expect(keysBeforeReload).toContain(TASKS_STORAGE_KEY);
-    expect(keysBeforeReload.some((k) => k?.toLowerCase().includes("search"))).toBe(
-      false,
-    );
+    expect(visibleListTitles()).toEqual(["Buy milk"]);
+    expect(snapshotLocalStorage()).toEqual(storageBeforeSearch);
 
     window.location.reload();
 
     expect(reloadMock).toHaveBeenCalledOnce();
     expect(getSearchInput().value).toBe("");
-    expect(visibleListTitles()).toEqual([
-      "Buy milk",
-      "Walk dog",
-      "Alpha chore",
-      "Alpha done",
-    ]);
+    expect(visibleListTitles()).toEqual(fullSampleListOrder);
+    expect(snapshotLocalStorage()).toEqual(storageBeforeSearch);
 
     vi.unstubAllGlobals();
   });
