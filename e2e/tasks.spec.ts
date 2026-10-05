@@ -380,6 +380,55 @@ test.describe("task list", () => {
     await assertImportedTasks();
   });
 
+  test("REQ-9: search combines with filters, no-match message, clear, and reload", async ({
+    page,
+  }) => {
+    const taskInput = page.getByLabel("Task title");
+    const addButton = page.getByRole("button", { name: "Add task" });
+    const searchInput = page.getByLabel("Search tasks");
+
+    await taskInput.fill("Garden weeds");
+    await addButton.click();
+    await taskInput.fill("Pay bills");
+    await addButton.click();
+
+    const payBillsItem = page
+      .getByRole("listitem")
+      .filter({ hasText: "Pay bills" });
+    await payBillsItem.getByRole("checkbox", { name: "Mark complete" }).check();
+
+    await page.getByRole("button", { name: "Active", exact: true }).click();
+    await searchInput.fill("garden");
+
+    await expect(page.getByText("Garden weeds")).toBeVisible();
+    await expect(page.getByText("Pay bills")).not.toBeVisible();
+
+    await searchInput.fill("");
+    await expect(page.getByText("Garden weeds")).toBeVisible();
+    await expect(page.getByText("Pay bills")).not.toBeVisible();
+
+    await page.getByRole("button", { name: "All", exact: true }).click();
+    await expect(page.getByText("Garden weeds")).toBeVisible();
+    await expect(page.getByText("Pay bills")).toBeVisible();
+
+    await searchInput.fill("xyz");
+    await expect(page.getByText("No tasks match")).toBeVisible();
+    await expect(page.locator("ul li")).toHaveCount(0);
+
+    await searchInput.fill("");
+    await expect(page.getByText("Garden weeds")).toBeVisible();
+    await expect(page.getByText("Pay bills")).toBeVisible();
+
+    await page.reload();
+
+    await expect(searchInput).toHaveValue("");
+    await expect(
+      page.getByRole("button", { name: "All", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByText("Garden weeds")).toBeVisible();
+    await expect(page.getByText("Pay bills")).toBeVisible();
+  });
+
   test("REQ-13: priority sort orders high before normal before low after mixed-priority adds", async ({
     page,
   }) => {

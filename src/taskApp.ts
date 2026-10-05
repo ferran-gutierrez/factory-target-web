@@ -1,10 +1,11 @@
 import { isTaskOverdue, localCalendarDay, sortTasksByDueDate } from "./taskDates";
+import { EMPTY_STATE_MESSAGE, type TaskFilter } from "./taskFilters";
 import {
-  EMPTY_STATE_MESSAGE,
-  filterTasks,
-  shouldShowEmptyState,
-  type TaskFilter,
-} from "./taskFilters";
+  filterTasksByCompletionAndSearch,
+  NO_MATCH_MESSAGE,
+  shouldShowNoTasksMatch,
+  shouldShowZeroStoredEmptyState,
+} from "./taskSearch";
 import { formatPriorityLabel, sortTasksByPriority } from "./taskPriority";
 import {
   parseImportTasks,
@@ -18,6 +19,7 @@ export function mountTaskApp(app: HTMLElement): void {
   const store = createTaskStore();
   let filter: TaskFilter = "all";
   let sortMode: SortMode = "creation";
+  let searchQuery = "";
   let editingId: string | null = null;
 
   const heading = document.createElement("h1");
@@ -90,6 +92,14 @@ export function mountTaskApp(app: HTMLElement): void {
   const filterDone = makeFilterButton("Done", "done");
   filterBar.append(filterAll, filterActive, filterDone);
 
+  const searchInput = document.createElement("input");
+  searchInput.type = "search";
+  searchInput.setAttribute("aria-label", "Search tasks");
+  searchInput.addEventListener("input", () => {
+    searchQuery = searchInput.value;
+    render();
+  });
+
   const sortBar = document.createElement("div");
   sortBar.setAttribute("role", "group");
   sortBar.setAttribute("aria-label", "Task sort");
@@ -153,6 +163,7 @@ export function mountTaskApp(app: HTMLElement): void {
     heading,
     form,
     filterBar,
+    searchInput,
     sortBar,
     importExportBar,
     importError,
@@ -406,7 +417,13 @@ export function mountTaskApp(app: HTMLElement): void {
   function render(): void {
     updateFilterButtons();
     updateSortButtons();
-    let visible = filterTasks(store.getTasks(), filter);
+    const storedTasks = store.getTasks();
+    const storedCount = storedTasks.length;
+    let visible = filterTasksByCompletionAndSearch(
+      storedTasks,
+      filter,
+      searchQuery,
+    );
     if (sortMode === "due") {
       visible = sortTasksByDueDate(visible);
     } else if (sortMode === "priority") {
@@ -414,10 +431,14 @@ export function mountTaskApp(app: HTMLElement): void {
     }
     list.replaceChildren(...visible.map(renderTaskItem));
 
-    const showEmpty = shouldShowEmptyState(visible.length);
-    emptyState.hidden = !showEmpty;
-    if (showEmpty) {
+    if (shouldShowZeroStoredEmptyState(storedCount)) {
+      emptyState.hidden = false;
       emptyState.textContent = EMPTY_STATE_MESSAGE;
+    } else if (shouldShowNoTasksMatch(storedCount, visible.length)) {
+      emptyState.hidden = false;
+      emptyState.textContent = NO_MATCH_MESSAGE;
+    } else {
+      emptyState.hidden = true;
     }
   }
 

@@ -8,6 +8,11 @@ import {
   shouldShowEmptyState,
   type TaskFilter,
 } from "../src/taskFilters";
+import {
+  NO_MATCH_MESSAGE,
+  shouldShowNoTasksMatch,
+  shouldShowZeroStoredEmptyState,
+} from "../src/taskSearch";
 import { saveTasks } from "../src/taskPersistence";
 
 const sampleTasks: Task[] = [
@@ -102,22 +107,29 @@ describe("task filters (logic)", () => {
     expect(visible[0]?.completed).toBe(true);
   });
 
-  it("REQ-11: empty state applies when zero tasks match the current filter", () => {
+  it("REQ-11: zero stored tasks use add-a-task empty state; stored tasks with no matches use No tasks match", () => {
     const filters: TaskFilter[] = ["all", "active", "done"];
 
     for (const filter of filters) {
       const visible = filterTasks([], filter);
       expect(visible).toHaveLength(0);
+      expect(shouldShowZeroStoredEmptyState(0)).toBe(true);
       expect(shouldShowEmptyState(visible.length)).toBe(true);
     }
-
-    const activeOnly = filterTasks(
-      [{ id: "d", title: "Done only", completed: true, priority: "normal" }],
-      "active",
+    expect(EMPTY_STATE_MESSAGE).toBe(
+      "No tasks yet — add a task to get started.",
     );
+
+    const storedTasks = [
+      { id: "d", title: "Done only", completed: true, priority: "normal" },
+    ] as const;
+    const activeOnly = filterTasks([...storedTasks], "active");
     expect(activeOnly).toHaveLength(0);
-    expect(shouldShowEmptyState(activeOnly.length)).toBe(true);
-    expect(EMPTY_STATE_MESSAGE.toLowerCase()).toMatch(/add a task/);
+    expect(shouldShowZeroStoredEmptyState(storedTasks.length)).toBe(false);
+    expect(shouldShowNoTasksMatch(storedTasks.length, activeOnly.length)).toBe(
+      true,
+    );
+    expect(NO_MATCH_MESSAGE).toBe("No tasks match");
   });
 });
 
@@ -167,8 +179,9 @@ describe("task app filters UI", () => {
     checkbox.dispatchEvent(new Event("change", { bubbles: true }));
 
     clickFilter("Active");
-    const emptyActive = document.querySelector("p");
-    expect(emptyActive?.hidden).toBe(false);
-    expect(emptyActive?.textContent).toMatch(/add a task/i);
+    const noMatchActive = document.querySelector("p:not([hidden])");
+    expect(noMatchActive?.textContent).toBe(NO_MATCH_MESSAGE);
+    expect(document.querySelectorAll("ul li")).toHaveLength(0);
+    expect(document.body.textContent).not.toContain(EMPTY_STATE_MESSAGE);
   });
 });
