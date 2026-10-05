@@ -196,14 +196,28 @@ test.describe("task list", () => {
     await prioritySelect.selectOption({ label: "High" });
     await addButton.click();
 
+    await taskInput.fill("High third");
+    await prioritySelect.selectOption({ label: "High" });
+    await addButton.click();
+
     await taskInput.fill("Normal third");
+    await prioritySelect.selectOption({ label: "Normal" });
+    await addButton.click();
+
+    await taskInput.fill("Normal fourth");
     await prioritySelect.selectOption({ label: "Normal" });
     await addButton.click();
 
     await page.getByRole("button", { name: "Priority", exact: true }).click();
 
     const titles = await page.locator("ul li span").allTextContents();
-    expect(titles).toEqual(["High second", "Normal third", "Low first"]);
+    expect(titles).toEqual([
+      "High second",
+      "High third",
+      "Normal third",
+      "Normal fourth",
+      "Low first",
+    ]);
   });
 });
 

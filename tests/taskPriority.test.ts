@@ -105,9 +105,18 @@ describe("task priority sort — UI", () => {
 
     expect(visibleListTitlesInOrder()).toEqual(["Third", "First", "Second"]);
 
+    submitTaskWithPriority("Normal later", "Normal");
+    submitTaskWithPriority("High later", "High");
+
     selectPrioritySort();
 
-    expect(visibleListTitlesInOrder()).toEqual(["First", "Second", "Third"]);
+    expect(visibleListTitlesInOrder()).toEqual([
+      "First",
+      "High later",
+      "Second",
+      "Normal later",
+      "Third",
+    ]);
   });
 });
 
@@ -116,11 +125,19 @@ describe("task priority sort — pure helper", () => {
     const tasks: TaskWithPriority[] = [
       { id: "3", title: "Third", completed: false, priority: "low" },
       { id: "1", title: "First", completed: false, priority: "high" },
+      { id: "5", title: "High later", completed: false, priority: "high" },
       { id: "2", title: "Second", completed: false, priority: "normal" },
+      { id: "4", title: "Normal later", completed: false, priority: "normal" },
     ];
 
     const sorted = sortTasksByPriority(tasks);
 
-    expect(sorted.map((t) => t.title)).toEqual(["First", "Second", "Third"]);
+    expect(sorted.map((t) => t.title)).toEqual([
+      "First",
+      "High later",
+      "Second",
+      "Normal later",
+      "Third",
+    ]);
   });
 });
