@@ -1,7 +1,9 @@
 import { isTaskOverdue, localCalendarDay, sortTasksByDueDate } from "./taskDates";
 import {
+  applySearchQuery,
   EMPTY_STATE_MESSAGE,
   filterTasks,
+  NO_MATCH_MESSAGE,
   shouldShowEmptyState,
   type TaskFilter,
 } from "./taskFilters";
@@ -19,6 +21,7 @@ export function mountTaskApp(app: HTMLElement): void {
   let filter: TaskFilter = "all";
   let sortMode: SortMode = "creation";
   let editingId: string | null = null;
+  let searchQuery = "";
 
   const heading = document.createElement("h1");
   heading.textContent = "Factory Target Web";
@@ -145,9 +148,19 @@ export function mountTaskApp(app: HTMLElement): void {
     skipNotice.hidden = true;
   }
 
+  const searchInput = document.createElement("input");
+  searchInput.type = "search";
+  searchInput.setAttribute("aria-label", "Search tasks");
+  searchInput.addEventListener("input", () => {
+    searchQuery = searchInput.value;
+    render();
+  });
+
   const list = document.createElement("ul");
   const emptyState = document.createElement("p");
   emptyState.hidden = true;
+  const noMatchState = document.createElement("p");
+  noMatchState.hidden = true;
 
   app.replaceChildren(
     heading,
@@ -157,8 +170,10 @@ export function mountTaskApp(app: HTMLElement): void {
     importExportBar,
     importError,
     skipNotice,
+    searchInput,
     list,
     emptyState,
+    noMatchState,
   );
 
   function clearImportError(): void {
@@ -406,7 +421,9 @@ export function mountTaskApp(app: HTMLElement): void {
   function render(): void {
     updateFilterButtons();
     updateSortButtons();
-    let visible = filterTasks(store.getTasks(), filter);
+    const allTasks = store.getTasks();
+    let visible = filterTasks(allTasks, filter);
+    visible = applySearchQuery(visible, searchQuery);
     if (sortMode === "due") {
       visible = sortTasksByDueDate(visible);
     } else if (sortMode === "priority") {
@@ -414,11 +431,14 @@ export function mountTaskApp(app: HTMLElement): void {
     }
     list.replaceChildren(...visible.map(renderTaskItem));
 
-    const showEmpty = shouldShowEmptyState(visible.length);
+    const showEmpty = shouldShowEmptyState(allTasks, filter, searchQuery);
+    const showNoMatch = !showEmpty && visible.length === 0;
     emptyState.hidden = !showEmpty;
     if (showEmpty) {
       emptyState.textContent = EMPTY_STATE_MESSAGE;
     }
+    noMatchState.hidden = !showNoMatch;
+    noMatchState.textContent = showNoMatch ? NO_MATCH_MESSAGE : "";
   }
 
   render();
