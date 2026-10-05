@@ -134,6 +134,17 @@ export function mountTaskApp(app: HTMLElement): void {
   importError.setAttribute("role", "alert");
   importError.hidden = true;
 
+  const skipNotice = document.createElement("div");
+  skipNotice.setAttribute("role", "status");
+  const initialSkipped = store.getInitialSkippedCount();
+  if (initialSkipped > 0) {
+    skipNotice.textContent = `${initialSkipped} invalid stored task${
+      initialSkipped === 1 ? "" : "s"
+    } skipped during load.`;
+  } else {
+    skipNotice.hidden = true;
+  }
+
   const list = document.createElement("ul");
   const emptyState = document.createElement("p");
   emptyState.hidden = true;
@@ -145,6 +156,7 @@ export function mountTaskApp(app: HTMLElement): void {
     sortBar,
     importExportBar,
     importError,
+    skipNotice,
     list,
     emptyState,
   );

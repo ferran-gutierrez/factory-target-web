@@ -265,6 +265,30 @@ test.describe("task list", () => {
     await expect(alphaItem.getByRole("checkbox")).not.toBeChecked();
     await expect(betaAfter.getByRole("checkbox")).toBeChecked();
 
+    await expect(alphaItem).toContainText("Normal");
+    await expect(alphaItem.getByLabel(/^Due date/)).toHaveCount(0);
+
+    await expect(betaAfter).toContainText("High");
+    await expect(betaAfter.getByLabel(/^Due date/)).toContainText("2030-08-15");
+
+    await page.reload();
+
+    const alphaAfterReload = page
+      .getByRole("listitem")
+      .filter({ hasText: "Journey alpha" });
+    const betaAfterReload = page
+      .getByRole("listitem")
+      .filter({ hasText: "Journey beta" });
+
+    await expect(alphaAfterReload.getByRole("checkbox")).not.toBeChecked();
+    await expect(betaAfterReload.getByRole("checkbox")).toBeChecked();
+    await expect(alphaAfterReload).toContainText("Normal");
+    await expect(alphaAfterReload.getByLabel(/^Due date/)).toHaveCount(0);
+    await expect(betaAfterReload).toContainText("High");
+    await expect(betaAfterReload.getByLabel(/^Due date/)).toContainText(
+      "2030-08-15",
+    );
+
     const reExportedTitles = exported.map((t) => ({
       title: t.title,
       completed: t.completed,
@@ -275,6 +299,85 @@ test.describe("task list", () => {
         { title: "Journey beta", completed: true },
       ]),
     );
+  });
+
+  test("REQ-7: export-import journey asserts title, completion, priority, and due date before and after reload", async ({
+    page,
+  }) => {
+    const addForm = page.getByRole("form", { name: "Add task" });
+    const taskInput = addForm.getByLabel("Task title");
+    const dueInput = addForm.getByLabel("Due date");
+    const prioritySelect = addForm.getByLabel("Priority");
+    const addButton = page.getByRole("button", { name: "Add task" });
+
+    const activeTitle = "REQ-7 active normal";
+    const doneTitle = "REQ-7 done high due";
+
+    await taskInput.fill(activeTitle);
+    await addButton.click();
+
+    await taskInput.fill(doneTitle);
+    await dueInput.fill("2030-08-15");
+    await prioritySelect.selectOption({ label: "High" });
+    await addButton.click();
+
+    const doneItem = page.getByRole("listitem").filter({ hasText: doneTitle });
+    await doneItem.getByRole("checkbox", { name: "Mark complete" }).check();
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export tasks" }).click();
+    const download = await downloadPromise;
+    const exportPath = await download.path();
+    if (!exportPath) {
+      throw new Error("Export download path missing");
+    }
+    const fs = await import("node:fs/promises");
+    const exportJson = await fs.readFile(exportPath, "utf-8");
+
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await expect(page.getByText(activeTitle)).toHaveCount(0);
+    await expect(page.getByText(doneTitle)).toHaveCount(0);
+
+    page.once("dialog", (dialog) => {
+      expect(dialog.type()).toBe("confirm");
+      void dialog.accept();
+    });
+
+    const fileChooserPromise = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "Import tasks" }).click();
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles({
+      name: "tasks-export.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(exportJson, "utf-8"),
+    });
+
+    const assertImportedTasks = async (): Promise<void> => {
+      const activeItem = page
+        .getByRole("listitem")
+        .filter({ hasText: activeTitle });
+      const doneAfterImport = page
+        .getByRole("listitem")
+        .filter({ hasText: doneTitle });
+
+      await expect(activeItem).toBeVisible();
+      await expect(doneAfterImport).toBeVisible();
+      await expect(activeItem.getByRole("checkbox")).not.toBeChecked();
+      await expect(doneAfterImport.getByRole("checkbox")).toBeChecked();
+      await expect(activeItem).toContainText("Normal");
+      await expect(activeItem.getByLabel(/^Due date/)).toHaveCount(0);
+      await expect(doneAfterImport).toContainText("High");
+      await expect(doneAfterImport.getByLabel(/^Due date/)).toContainText(
+        "2030-08-15",
+      );
+    };
+
+    await assertImportedTasks();
+
+    await page.reload();
+
+    await assertImportedTasks();
   });
 
   test("REQ-13: priority sort orders high before normal before low after mixed-priority adds", async ({

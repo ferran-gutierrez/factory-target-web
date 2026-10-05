@@ -36,7 +36,14 @@ function normalizeTask(raw: Task): Task {
   };
 }
 
+let lastLoadSkippedCount = 0;
+
+export function getLastLoadSkippedCount(): number {
+  return lastLoadSkippedCount;
+}
+
 export function loadTasks(): Task[] {
+  lastLoadSkippedCount = 0;
   try {
     const raw = localStorage.getItem(TASKS_STORAGE_KEY);
     if (raw === null) {
@@ -46,10 +53,17 @@ export function loadTasks(): Task[] {
     if (!Array.isArray(parsed)) {
       return [];
     }
-    if (!parsed.every(isStoredTask)) {
-      return [];
+    const tasks: Task[] = [];
+    let skipped = 0;
+    for (const entry of parsed) {
+      if (isStoredTask(entry)) {
+        tasks.push(normalizeTask(entry));
+      } else {
+        skipped += 1;
+      }
     }
-    return parsed.map(normalizeTask);
+    lastLoadSkippedCount = skipped;
+    return tasks;
   } catch {
     return [];
   }
