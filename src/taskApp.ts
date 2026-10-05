@@ -1,10 +1,11 @@
 import { isTaskOverdue, localCalendarDay, sortTasksByDueDate } from "./taskDates";
+import { EMPTY_STATE_MESSAGE, type TaskFilter } from "./taskFilters";
 import {
-  EMPTY_STATE_MESSAGE,
-  filterTasks,
-  shouldShowEmptyState,
-  type TaskFilter,
-} from "./taskFilters";
+  filterTasksByStatusAndSearch,
+  NO_SEARCH_MATCH_MESSAGE,
+  shouldShowAddTaskEmptyState,
+  shouldShowNoMatchMessage,
+} from "./taskSearch";
 import { formatPriorityLabel, sortTasksByPriority } from "./taskPriority";
 import {
   parseImportTasks,
@@ -145,6 +146,10 @@ export function mountTaskApp(app: HTMLElement): void {
     skipNotice.hidden = true;
   }
 
+  const searchInput = document.createElement("input");
+  searchInput.type = "search";
+  searchInput.setAttribute("aria-label", "Search tasks");
+
   const list = document.createElement("ul");
   const emptyState = document.createElement("p");
   emptyState.hidden = true;
@@ -157,9 +162,14 @@ export function mountTaskApp(app: HTMLElement): void {
     importExportBar,
     importError,
     skipNotice,
+    searchInput,
     list,
     emptyState,
   );
+
+  searchInput.addEventListener("input", () => {
+    render();
+  });
 
   function clearImportError(): void {
     importError.hidden = true;
@@ -406,7 +416,9 @@ export function mountTaskApp(app: HTMLElement): void {
   function render(): void {
     updateFilterButtons();
     updateSortButtons();
-    let visible = filterTasks(store.getTasks(), filter);
+    const allTasks = store.getTasks();
+    const searchQuery = searchInput.value;
+    let visible = filterTasksByStatusAndSearch(allTasks, filter, searchQuery);
     if (sortMode === "due") {
       visible = sortTasksByDueDate(visible);
     } else if (sortMode === "priority") {
@@ -414,10 +426,22 @@ export function mountTaskApp(app: HTMLElement): void {
     }
     list.replaceChildren(...visible.map(renderTaskItem));
 
-    const showEmpty = shouldShowEmptyState(visible.length);
+    const showAddTaskEmpty = shouldShowAddTaskEmptyState(
+      allTasks.length,
+      visible.length,
+      searchQuery,
+    );
+    const showNoMatch = shouldShowNoMatchMessage(
+      allTasks.length,
+      visible.length,
+      searchQuery,
+    );
+    const showEmpty = showAddTaskEmpty || showNoMatch;
     emptyState.hidden = !showEmpty;
-    if (showEmpty) {
+    if (showAddTaskEmpty) {
       emptyState.textContent = EMPTY_STATE_MESSAGE;
+    } else if (showNoMatch) {
+      emptyState.textContent = NO_SEARCH_MATCH_MESSAGE;
     }
   }
 
