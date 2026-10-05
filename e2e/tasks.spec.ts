@@ -380,6 +380,52 @@ test.describe("task list", () => {
     await assertImportedTasks();
   });
 
+  test("REQ-10: search filter journey with filters, no-match, and reload", async ({
+    page,
+  }) => {
+    const addForm = page.getByRole("form", { name: "Add task" });
+    const taskInput = addForm.getByLabel("Task title");
+    const addButton = page.getByRole("button", { name: "Add task" });
+    const searchInput = page.getByLabel("Search tasks");
+
+    await taskInput.fill("Cherry task");
+    await addButton.click();
+    await taskInput.fill("Apple task");
+    await addButton.click();
+
+    await searchInput.fill("apple");
+    await expect(page.getByText("Apple task")).toBeVisible();
+    await expect(page.getByText("Cherry task")).not.toBeVisible();
+
+    await searchInput.fill("");
+    await expect(page.getByText("Apple task")).toBeVisible();
+    await expect(page.getByText("Cherry task")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "All", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    const appleItem = page.getByRole("listitem").filter({ hasText: "Apple task" });
+    await appleItem.getByRole("checkbox", { name: "Mark complete" }).check();
+
+    await page.getByRole("button", { name: "Active", exact: true }).click();
+    await searchInput.fill("apple");
+    await expect(page.getByText("No tasks match")).toBeVisible();
+    await expect(page.locator("ul li")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(page.getByText("Apple task")).toBeVisible();
+    await expect(page.getByText("Cherry task")).not.toBeVisible();
+
+    await page.reload();
+
+    await expect(searchInput).toHaveValue("");
+    await expect(
+      page.getByRole("button", { name: "All", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByText("Apple task")).toBeVisible();
+    await expect(page.getByText("Cherry task")).toBeVisible();
+  });
+
   test("REQ-13: priority sort orders high before normal before low after mixed-priority adds", async ({
     page,
   }) => {
