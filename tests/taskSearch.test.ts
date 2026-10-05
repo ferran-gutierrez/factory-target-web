@@ -109,6 +109,54 @@ function visibleMessageText(): string | undefined {
   return message?.textContent ?? undefined;
 }
 
+function clickSort(label: "Creation order" | "Due date" | "Priority"): void {
+  const btn = [...document.querySelectorAll("button")].find(
+    (b) => b.textContent === label,
+  );
+  if (!btn) {
+    throw new Error(`Sort control "${label}" not found`);
+  }
+  btn.click();
+}
+
+function sortButton(label: "Creation order" | "Due date" | "Priority"): HTMLButtonElement {
+  const btn = [...document.querySelectorAll("button")].find(
+    (b) => b.textContent === label,
+  );
+  if (!btn) {
+    throw new Error(`Sort control "${label}" not found`);
+  }
+  return btn as HTMLButtonElement;
+}
+
+function getAddDueDateInput(): HTMLInputElement {
+  const input = document.querySelector<HTMLInputElement>(
+    'form[aria-label="Add task"] input[type="date"]',
+  );
+  if (!input) {
+    throw new Error("Add-task due date control not found");
+  }
+  return input;
+}
+
+function submitTaskWithDueDate(title: string, dueDate: string): void {
+  const input = document.querySelector<HTMLInputElement>(
+    'input[aria-label="Task title"]',
+  );
+  if (!input) {
+    throw new Error("Task entry control not found");
+  }
+  input.value = title;
+  getAddDueDateInput().value = dueDate;
+  input.form?.requestSubmit();
+}
+
+const prioritySortTasks: Task[] = [
+  { id: "low", title: "Low priority task", completed: false, priority: "low" },
+  { id: "high", title: "High priority task", completed: false, priority: "high" },
+  { id: "done", title: "Done noise", completed: true, priority: "normal" },
+];
+
 describe("task search (logic)", () => {
   it("REQ-2: title search is case-insensitive substring match on titles", () => {
     const visible = filterTasksBySearch(searchSampleTasks, "buy");
@@ -172,29 +220,37 @@ describe("task search (logic)", () => {
     expect(NO_MATCH_MESSAGE).toBe("No tasks match");
   });
 
-  it("REQ-7: whitespace-only search is treated as no search after completion filter", () => {
+  it("REQ-7: clearing search restores completion-filtered tasks in unchanged relative order", () => {
     const filters: TaskFilter[] = ["all", "active", "done"];
 
     for (const filter of filters) {
-      const withWhitespace = filterTasksByCompletionAndSearch(
-        sampleTasks,
-        filter,
-        "   \t  ",
-      );
+      const completionOnly = filterTasks(sampleTasks, filter);
       const withEmpty = filterTasksByCompletionAndSearch(
         sampleTasks,
         filter,
         "",
       );
-      const completionOnly = filterTasks(sampleTasks, filter);
-
-      expect(withWhitespace.map((t) => t.id).sort()).toEqual(
-        completionOnly.map((t) => t.id).sort(),
+      const withWhitespace = filterTasksByCompletionAndSearch(
+        sampleTasks,
+        filter,
+        "   \t  ",
       );
-      expect(withEmpty.map((t) => t.id).sort()).toEqual(
-        completionOnly.map((t) => t.id).sort(),
+
+      expect(withEmpty.map((t) => t.id)).toEqual(completionOnly.map((t) => t.id));
+      expect(withWhitespace.map((t) => t.id)).toEqual(
+        completionOnly.map((t) => t.id),
       );
     }
+
+    const narrowed = filterTasksByCompletionAndSearch(
+      sampleTasks,
+      "active",
+      "one",
+    );
+    expect(narrowed.map((t) => t.title)).toEqual(["Active one"]);
+
+    const restored = filterTasksByCompletionAndSearch(sampleTasks, "active", "");
+    expect(restored.map((t) => t.title)).toEqual(["Active one", "Active two"]);
   });
 });
 
@@ -237,19 +293,61 @@ describe("task app search UI", () => {
   });
 
   it("REQ-7: clearing search restores tasks for the current completion filter", () => {
+    vi.stubGlobal("localStorage", createStorage());
+    saveTasks(prioritySortTasks);
+    mountFreshApp();
+
     clickFilter("Active");
-    setSearchQuery("one");
-    expect(visibleListTitles().sort()).toEqual(["Active one"].sort());
+    clickSort("Priority");
+    expect(sortButton("Priority").getAttribute("aria-pressed")).toBe("true");
+
+    const orderBeforeSearch = visibleListTitles();
+    expect(orderBeforeSearch).toEqual(["High priority task", "Low priority task"]);
+
+    setSearchQuery("Low");
+    expect(visibleListTitles()).toEqual(["Low priority task"]);
+    expect(sortButton("Priority").getAttribute("aria-pressed")).toBe("true");
 
     setSearchQuery("");
-    expect(visibleListTitles().sort()).toEqual(
-      ["Active one", "Active two"].sort(),
-    );
+    expect(visibleListTitles()).toEqual(orderBeforeSearch);
+    expect(sortButton("Priority").getAttribute("aria-pressed")).toBe("true");
 
     setSearchQuery("   ");
-    expect(visibleListTitles().sort()).toEqual(
-      ["Active one", "Active two"].sort(),
-    );
+    expect(visibleListTitles()).toEqual(orderBeforeSearch);
+    expect(sortButton("Priority").getAttribute("aria-pressed")).toBe("true");
+
+    vi.stubGlobal("localStorage", createStorage());
+    mountFreshApp();
+
+    submitTaskWithDueDate("Later due active", "2099-06-01");
+    submitTaskWithDueDate("Earlier due active", "2000-01-15");
+    submitTaskTitle("Done filler");
+    for (const li of document.querySelectorAll("ul li")) {
+      if (li.textContent?.includes("Done filler")) {
+        const checkbox = li.querySelector<HTMLInputElement>(
+          'input[type="checkbox"]',
+        )!;
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+
+    clickFilter("Active");
+    clickSort("Due date");
+    expect(sortButton("Due date").getAttribute("aria-pressed")).toBe("true");
+
+    const dueOrderBeforeSearch = visibleListTitles();
+    expect(dueOrderBeforeSearch).toEqual([
+      "Earlier due active",
+      "Later due active",
+    ]);
+
+    setSearchQuery("Later");
+    expect(visibleListTitles()).toEqual(["Later due active"]);
+
+    setSearchQuery("");
+    expect(visibleListTitles()).toEqual(dueOrderBeforeSearch);
+    expect(sortButton("Due date").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("REQ-8: search is not persisted; remount shows empty search and all tasks under all", () => {
