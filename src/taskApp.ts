@@ -28,12 +28,17 @@ export function mountTaskApp(app: HTMLElement): void {
 
   const addDueDateInput = document.createElement("input");
   addDueDateInput.type = "date";
+  addDueDateInput.id = "task-due-date";
+
+  const addDueDateLabel = document.createElement("label");
+  addDueDateLabel.htmlFor = addDueDateInput.id;
+  addDueDateLabel.textContent = "Due date";
 
   const addButton = document.createElement("button");
   addButton.type = "submit";
   addButton.textContent = "Add task";
 
-  form.append(taskInput, addDueDateInput, addButton);
+  form.append(taskInput, addDueDateLabel, addDueDateInput, addButton);
 
   const filterBar = document.createElement("div");
   filterBar.setAttribute("role", "group");
@@ -141,7 +146,12 @@ export function mountTaskApp(app: HTMLElement): void {
 
       const dueInput = document.createElement("input");
       dueInput.type = "date";
+      dueInput.id = `edit-due-${task.id}`;
       dueInput.value = task.dueDate ?? "";
+
+      const editDueLabel = document.createElement("label");
+      editDueLabel.htmlFor = dueInput.id;
+      editDueLabel.textContent = "Edit due date";
 
       const clearDueButton = document.createElement("button");
       clearDueButton.type = "button";
@@ -169,6 +179,7 @@ export function mountTaskApp(app: HTMLElement): void {
         titleHint,
         editLabel,
         editInput,
+        editDueLabel,
         dueInput,
         clearDueButton,
         saveButton,
