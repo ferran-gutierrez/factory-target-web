@@ -8,6 +8,7 @@ import {
   shouldShowEmptyState,
   type TaskFilter,
 } from "../src/taskFilters";
+import { filterTasksByTitleSearch, NO_TASKS_MATCH_MESSAGE } from "../src/taskSearch";
 import { saveTasks } from "../src/taskPersistence";
 
 const sampleTasks: Task[] = [
@@ -74,6 +75,17 @@ function submitTaskTitle(title: string): void {
   input.form?.requestSubmit();
 }
 
+function setSearchQuery(query: string): void {
+  const input = document.querySelector<HTMLInputElement>(
+    'input[aria-label="Search tasks"]',
+  );
+  if (!input) {
+    throw new Error("Search tasks control not found");
+  }
+  input.value = query;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 describe("task filters (logic)", () => {
   it("REQ-8: with filter all, every task is visible regardless of completion", () => {
     const visible = filterTasks(sampleTasks, "all");
@@ -108,16 +120,29 @@ describe("task filters (logic)", () => {
     for (const filter of filters) {
       const visible = filterTasks([], filter);
       expect(visible).toHaveLength(0);
-      expect(shouldShowEmptyState(visible.length)).toBe(true);
+      expect(shouldShowEmptyState(0, visible.length, "")).toBe(true);
     }
 
-    const activeOnly = filterTasks(
-      [{ id: "d", title: "Done only", completed: true, priority: "normal" }],
-      "active",
-    );
+    const doneOnlyTasks = [
+      { id: "d", title: "Done only", completed: true, priority: "normal" },
+    ] as Task[];
+    const activeOnly = filterTasks(doneOnlyTasks, "active");
     expect(activeOnly).toHaveLength(0);
-    expect(shouldShowEmptyState(activeOnly.length)).toBe(true);
+    expect(shouldShowEmptyState(doneOnlyTasks.length, activeOnly.length, "")).toBe(
+      true,
+    );
     expect(EMPTY_STATE_MESSAGE.toLowerCase()).toMatch(/add a task/);
+
+    const statusFiltered = filterTasks(sampleTasks, "all");
+    const searchExcluded = filterTasksByTitleSearch(statusFiltered, "zzzz");
+    expect(searchExcluded).toHaveLength(0);
+    expect(
+      shouldShowEmptyState(
+        sampleTasks.length,
+        statusFiltered.length,
+        "zzzz",
+      ),
+    ).toBe(false);
   });
 });
 
@@ -148,6 +173,18 @@ describe("task app filters UI", () => {
     expect(visibleListTitles()).toEqual(["Done one"]);
     expect(document.body.textContent).not.toContain("Active one");
     expect(document.body.textContent).not.toContain("Active two");
+  });
+
+  it("REQ-5: shows add-task empty state and not No tasks match when storage is empty even with search text", () => {
+    vi.stubGlobal("localStorage", createStorage());
+    document.body.innerHTML = `<main id="app"></main>`;
+    mountTaskApp(document.querySelector("#app")!);
+
+    setSearchQuery("anything");
+
+    const empty = document.querySelector("p:not([hidden])");
+    expect(empty?.textContent).toBe(EMPTY_STATE_MESSAGE);
+    expect(document.body.textContent).not.toContain(NO_TASKS_MATCH_MESSAGE);
   });
 
   it("REQ-11: displays empty state in the app when filter shows zero tasks", () => {
