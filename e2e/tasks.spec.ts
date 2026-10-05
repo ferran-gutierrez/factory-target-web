@@ -180,6 +180,103 @@ test.describe("task list", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  test("REQ-3: Import tasks control uses a JSON-restricted file chooser", async ({
+    page,
+  }) => {
+    const importButton = page.getByRole("button", { name: "Import tasks" });
+    await expect(importButton).toBeVisible();
+
+    const fileInput = page.locator('input[type="file"]');
+    await expect(fileInput).toHaveCount(1);
+    const accept = await fileInput.getAttribute("accept");
+    expect(accept).toBeTruthy();
+    expect(accept!).toMatch(/\.json|application\/json/i);
+
+    const fileChooserPromise = page.waitForEvent("filechooser");
+    await importButton.click();
+    await fileChooserPromise;
+  });
+
+  test("REQ-10: export, clear storage, import, and confirm restores tasks", async ({
+    page,
+  }) => {
+    const addForm = page.getByRole("form", { name: "Add task" });
+    const taskInput = addForm.getByLabel("Task title");
+    const dueInput = addForm.getByLabel("Due date");
+    const prioritySelect = addForm.getByLabel("Priority");
+    const addButton = page.getByRole("button", { name: "Add task" });
+
+    await taskInput.fill("Journey alpha");
+    await addButton.click();
+
+    await taskInput.fill("Journey beta");
+    await dueInput.fill("2030-08-15");
+    await prioritySelect.selectOption({ label: "High" });
+    await addButton.click();
+
+    const betaItem = page
+      .getByRole("listitem")
+      .filter({ hasText: "Journey beta" });
+    await betaItem.getByRole("checkbox", { name: "Mark complete" }).check();
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export tasks" }).click();
+    const download = await downloadPromise;
+    const exportPath = await download.path();
+    if (!exportPath) {
+      throw new Error("Export download path missing");
+    }
+    const fs = await import("node:fs/promises");
+    const exportJson = await fs.readFile(exportPath, "utf-8");
+    const exported = JSON.parse(exportJson) as { title: string; completed: boolean }[];
+    expect(exported.map((t) => t.title).sort()).toEqual(
+      ["Journey alpha", "Journey beta"].sort(),
+    );
+
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await expect(page.getByText("Journey alpha")).toHaveCount(0);
+    await expect(page.getByText("Journey beta")).toHaveCount(0);
+
+    page.once("dialog", (dialog) => {
+      expect(dialog.type()).toBe("confirm");
+      void dialog.accept();
+    });
+
+    const fileChooserPromise = page.waitForEvent("filechooser");
+    await page.getByRole("button", { name: "Import tasks" }).click();
+    const fileChooser = await fileChooserPromise;
+    await fileChooser.setFiles({
+      name: "tasks-export.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(exportJson, "utf-8"),
+    });
+
+    await expect(page.getByText("Journey alpha")).toBeVisible();
+    await expect(page.getByText("Journey beta")).toBeVisible();
+
+    const alphaItem = page
+      .getByRole("listitem")
+      .filter({ hasText: "Journey alpha" });
+    const betaAfter = page
+      .getByRole("listitem")
+      .filter({ hasText: "Journey beta" });
+
+    await expect(alphaItem.getByRole("checkbox")).not.toBeChecked();
+    await expect(betaAfter.getByRole("checkbox")).toBeChecked();
+
+    const reExportedTitles = exported.map((t) => ({
+      title: t.title,
+      completed: t.completed,
+    }));
+    expect(reExportedTitles).toEqual(
+      expect.arrayContaining([
+        { title: "Journey alpha", completed: false },
+        { title: "Journey beta", completed: true },
+      ]),
+    );
+  });
+
   test("REQ-13: priority sort orders high before normal before low after mixed-priority adds", async ({
     page,
   }) => {

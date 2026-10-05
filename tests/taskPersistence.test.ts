@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { assignFileToInput, ensureDataTransfer } from "./dataTransferPolyfill";
 import { mountTaskApp } from "../src/taskApp";
 import type { Task } from "../src/taskStore";
 import {
@@ -264,6 +265,87 @@ describe("task persistence", () => {
       "normal",
     );
     expect(restored.find((t) => t.title === "Low task")?.priority).toBe("low");
+  });
+
+  it("REQ-9: after successful import, reload restores imported titles, completion, priorities, and due dates", async () => {
+    ensureDataTransfer();
+    mountFreshApp();
+    submitTask("Pre-import noise");
+
+    const importPayload = JSON.stringify([
+      {
+        id: "imp-a",
+        title: "Imported active",
+        completed: false,
+        priority: "low",
+        dueDate: "2031-04-10",
+      },
+      {
+        id: "imp-b",
+        title: "Imported done",
+        completed: true,
+        priority: "high",
+      },
+    ]);
+
+    const fileInput = document.querySelector<HTMLInputElement>(
+      'input[type="file"]',
+    );
+    if (!fileInput) {
+      throw new Error("Import file input not found");
+    }
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const file = new File([importPayload], "tasks.json", {
+      type: "application/json",
+    });
+    assignFileToInput(fileInput, file);
+    fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    expect(document.body.textContent).not.toContain("Pre-import noise");
+    expect(listItemWithTitle("Imported active").textContent).toMatch(/Low/);
+    expect(
+      listItemWithTitle("Imported active").querySelector(
+        '[aria-label^="Due date"]',
+      )?.textContent,
+    ).toMatch(/2031-04-10/);
+    expect(
+      listItemWithTitle("Imported done").querySelector<HTMLInputElement>(
+        'input[type="checkbox"]',
+      )?.checked,
+    ).toBe(true);
+    expect(listItemWithTitle("Imported done").textContent).toMatch(/High/);
+
+    mountFreshApp();
+
+    expect(listItemWithTitle("Imported active").textContent).toMatch(/Low/);
+    expect(
+      listItemWithTitle("Imported active").querySelector(
+        '[aria-label^="Due date"]',
+      )?.textContent,
+    ).toMatch(/2031-04-10/);
+    expect(
+      listItemWithTitle("Imported done").querySelector<HTMLInputElement>(
+        'input[type="checkbox"]',
+      )?.checked,
+    ).toBe(true);
+    expect(listItemWithTitle("Imported done").textContent).toMatch(/High/);
+
+    const restored = loadTasks() as TaskWithPriority[];
+    expect(restored.find((t) => t.title === "Imported active")).toMatchObject({
+      completed: false,
+      priority: "low",
+      dueDate: "2031-04-10",
+    });
+    expect(restored.find((t) => t.title === "Imported done")).toMatchObject({
+      completed: true,
+      priority: "high",
+    });
+    expect(restored.find((t) => t.title === "Imported done")?.dueDate).toBe(
+      undefined,
+    );
   });
 
   it("REQ-12: legacy tasks without priority field load as normal in store and UI", () => {

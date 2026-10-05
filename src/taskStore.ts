@@ -26,6 +26,7 @@ export type TaskStore = {
   ) => boolean;
   setTaskCompleted: (id: string, completed: boolean) => boolean;
   deleteTask: (id: string, confirmed: boolean) => boolean;
+  replaceTasks: (tasks: Task[]) => void;
 };
 
 function newId(): string {
@@ -136,6 +137,11 @@ export function createTaskStore(): TaskStore {
       tasks = tasks.filter((t) => t.id !== id);
       persist();
       return true;
+    },
+
+    replaceTasks(next: Task[]) {
+      tasks = next.map((t) => ({ ...t }));
+      persist();
     },
   };
 }
