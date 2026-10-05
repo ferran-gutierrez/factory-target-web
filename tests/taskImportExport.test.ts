@@ -365,6 +365,22 @@ describe("task import/export UI", () => {
     expect(localStorage.getItem(TASKS_STORAGE_KEY)).toBe(beforeStorage);
   });
 
+  it("REQ-6: malformed JSON import leaves list unchanged and shows import error", async () => {
+    submitTask("First");
+    submitTask("Second");
+    const beforeTitles = listTitlesInDomOrder();
+
+    const confirmSpy = vi.spyOn(window, "confirm");
+
+    await selectImportFile('{ "tasks": [');
+
+    expect(listTitlesInDomOrder()).toEqual(beforeTitles);
+    const errorText = visibleImportErrorText();
+    expect(errorText).toBeTruthy();
+    expect(errorText!.length).toBeGreaterThan(0);
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
   it("REQ-8: invalid import file shows visible error and leaves list unchanged", async () => {
     submitTask("First");
     submitTask("Second");

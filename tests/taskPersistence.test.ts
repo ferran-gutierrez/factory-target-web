@@ -78,6 +78,29 @@ function listItemWithTitle(title: string): HTMLLIElement {
   return item;
 }
 
+function seedMixedValidInvalidStorage(): void {
+  localStorage.setItem(
+    TASKS_STORAGE_KEY,
+    JSON.stringify([
+      { id: "keep-1", title: "Keep me", completed: false },
+      { title: "missing id" },
+    ]),
+  );
+}
+
+function skipNoticeElement(): HTMLElement | null {
+  return document.querySelector('[role="status"]');
+}
+
+function skipNoticeText(): string | null {
+  const el = skipNoticeElement();
+  if (!el || el.hasAttribute("hidden")) {
+    return null;
+  }
+  const text = el.textContent?.trim();
+  return text && text.length > 0 ? text : null;
+}
+
 describe("task persistence", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", createStorage());
@@ -346,6 +369,110 @@ describe("task persistence", () => {
     expect(restored.find((t) => t.title === "Imported done")?.dueDate).toBe(
       undefined,
     );
+  });
+
+  it("REQ-1: loadTasks returns valid entries only and normalizes missing priority", () => {
+    seedMixedValidInvalidStorage();
+
+    const loaded = loadTasks() as TaskWithPriority[];
+
+    expect(loaded).toEqual([
+      {
+        id: "keep-1",
+        title: "Keep me",
+        completed: false,
+        priority: "normal",
+      },
+    ]);
+  });
+
+  it("REQ-2: partial invalid storage shows valid titles and hides invalid ones in the UI", () => {
+    seedMixedValidInvalidStorage();
+
+    mountFreshApp();
+
+    expect(listItemWithTitle("Keep me")).toBeTruthy();
+    expect(
+      [...document.querySelectorAll("ul li")].some((li) =>
+        li.textContent?.includes("missing id"),
+      ),
+    ).toBe(false);
+  });
+
+  it("REQ-3: partial invalid storage shows skip notice with invalid entry count", () => {
+    seedMixedValidInvalidStorage();
+
+    mountFreshApp();
+
+    const notice = skipNoticeText();
+    expect(notice).toBeTruthy();
+    expect(notice).toMatch(/1/);
+
+    localStorage.setItem(
+      TASKS_STORAGE_KEY,
+      JSON.stringify([
+        { title: "bad one" },
+        { id: "x", title: 42, completed: false },
+      ]),
+    );
+    mountFreshApp();
+
+    const allInvalidNotice = skipNoticeText();
+    expect(allInvalidNotice).toBeTruthy();
+    expect(allInvalidNotice).toMatch(/2/);
+    expect(document.querySelectorAll("ul li")).toHaveLength(0);
+  });
+
+  it("REQ-4: unreadable storage yields empty list without skip notice", () => {
+    mountFreshApp();
+    expect(skipNoticeText()).toBeNull();
+    expect(document.querySelectorAll("ul li")).toHaveLength(0);
+
+    localStorage.setItem(TASKS_STORAGE_KEY, "{not-json");
+    mountFreshApp();
+    expect(loadTasks()).toEqual([]);
+    expect(skipNoticeText()).toBeNull();
+    expect(document.querySelectorAll("ul li")).toHaveLength(0);
+
+    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify({ wrong: true }));
+    mountFreshApp();
+    expect(loadTasks()).toEqual([]);
+    expect(skipNoticeText()).toBeNull();
+    expect(document.querySelectorAll("ul li")).toHaveLength(0);
+  });
+
+  it("REQ-5: startup load persists valid subset and reload keeps tasks without invalid JSON", () => {
+    seedMixedValidInvalidStorage();
+
+    mountFreshApp();
+
+    const storedAfterLoad = JSON.parse(
+      localStorage.getItem(TASKS_STORAGE_KEY)!,
+    ) as unknown[];
+    expect(storedAfterLoad).toHaveLength(1);
+    expect(storedAfterLoad[0]).toMatchObject({
+      id: "keep-1",
+      title: "Keep me",
+      completed: false,
+    });
+    expect(
+      storedAfterLoad.some(
+        (entry) =>
+          typeof entry === "object" &&
+          entry !== null &&
+          "title" in entry &&
+          (entry as { title?: string }).title === "missing id",
+      ),
+    ).toBe(false);
+
+    mountFreshApp();
+
+    expect(listItemWithTitle("Keep me")).toBeTruthy();
+    const storedAfterReload = JSON.parse(
+      localStorage.getItem(TASKS_STORAGE_KEY)!,
+    ) as unknown[];
+    expect(storedAfterReload).toHaveLength(1);
+    expect(storedAfterReload[0]).toMatchObject({ title: "Keep me" });
   });
 
   it("REQ-12: legacy tasks without priority field load as normal in store and UI", () => {
