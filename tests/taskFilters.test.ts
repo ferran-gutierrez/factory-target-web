@@ -104,19 +104,20 @@ describe("task filters (logic)", () => {
 
   it("REQ-11: empty state applies when zero tasks match the current filter", () => {
     const filters: TaskFilter[] = ["all", "active", "done"];
+    const doneOnly: Task[] = [
+      { id: "d", title: "Done only", completed: true, priority: "normal" },
+    ];
 
     for (const filter of filters) {
-      const visible = filterTasks([], filter);
-      expect(visible).toHaveLength(0);
-      expect(shouldShowEmptyState(visible.length)).toBe(true);
+      expect(filterTasks([], filter)).toHaveLength(0);
+      expect(shouldShowEmptyState([], filter, "")).toBe(true);
+      expect(shouldShowEmptyState([], filter, "typed query")).toBe(true);
     }
 
-    const activeOnly = filterTasks(
-      [{ id: "d", title: "Done only", completed: true, priority: "normal" }],
-      "active",
-    );
+    const activeOnly = filterTasks(doneOnly, "active");
     expect(activeOnly).toHaveLength(0);
-    expect(shouldShowEmptyState(activeOnly.length)).toBe(true);
+    expect(shouldShowEmptyState(doneOnly, "active", "")).toBe(true);
+    expect(shouldShowEmptyState(doneOnly, "active", "nomatch")).toBe(false);
     expect(EMPTY_STATE_MESSAGE.toLowerCase()).toMatch(/add a task/);
   });
 });

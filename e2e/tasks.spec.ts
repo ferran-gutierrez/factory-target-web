@@ -380,6 +380,73 @@ test.describe("task list", () => {
     await assertImportedTasks();
   });
 
+  test("REQ-7: after reload search box is empty and all stored tasks appear under All", async ({
+    page,
+  }) => {
+    const addForm = page.getByRole("form", { name: "Add task" });
+    const taskInput = addForm.getByLabel("Task title");
+    const addButton = page.getByRole("button", { name: "Add task" });
+    const searchInput = page.getByLabel("Search tasks");
+
+    await taskInput.fill("Persist one");
+    await addButton.click();
+    await taskInput.fill("Persist two");
+    await addButton.click();
+
+    await searchInput.fill("one");
+    await expect(page.getByText("Persist one")).toBeVisible();
+    await expect(page.getByText("Persist two")).not.toBeVisible();
+
+    await page.reload();
+
+    await expect(searchInput).toHaveValue("");
+    await expect(page.getByRole("button", { name: "All", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByText("Persist one")).toBeVisible();
+    await expect(page.getByText("Persist two")).toBeVisible();
+  });
+
+  test("REQ-9: search filter journey with Active filter, no match, clear, and reload", async ({
+    page,
+  }) => {
+    const addForm = page.getByRole("form", { name: "Add task" });
+    const taskInput = addForm.getByLabel("Task title");
+    const addButton = page.getByRole("button", { name: "Add task" });
+    const searchInput = page.getByLabel("Search tasks");
+
+    await taskInput.fill("Cherry pie");
+    await addButton.click();
+    await taskInput.fill("Apple tart");
+    await addButton.click();
+
+    await searchInput.fill("apple");
+    await expect(page.getByText("Apple tart")).toBeVisible();
+    await expect(page.getByText("Cherry pie")).not.toBeVisible();
+
+    const appleItem = page.getByRole("listitem").filter({ hasText: "Apple tart" });
+    await appleItem.getByRole("checkbox", { name: "Mark complete" }).check();
+
+    await page.getByRole("button", { name: "Active", exact: true }).click();
+    await expect(page.getByText("No tasks match")).toBeVisible();
+    await expect(page.getByRole("listitem")).toHaveCount(0);
+
+    await searchInput.fill("");
+    await expect(page.getByText("Cherry pie")).toBeVisible();
+    await expect(page.getByText("Apple tart")).not.toBeVisible();
+
+    await page.reload();
+
+    await expect(searchInput).toHaveValue("");
+    await expect(page.getByRole("button", { name: "All", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByText("Cherry pie")).toBeVisible();
+    await expect(page.getByText("Apple tart")).toBeVisible();
+  });
+
   test("REQ-13: priority sort orders high before normal before low after mixed-priority adds", async ({
     page,
   }) => {
