@@ -11,9 +11,9 @@ import {
 import { saveTasks } from "../src/taskPersistence";
 
 const sampleTasks: Task[] = [
-  { id: "a", title: "Active one", completed: false },
-  { id: "b", title: "Done one", completed: true },
-  { id: "c", title: "Active two", completed: false },
+  { id: "a", title: "Active one", completed: false, priority: "normal" },
+  { id: "b", title: "Done one", completed: true, priority: "normal" },
+  { id: "c", title: "Active two", completed: false, priority: "normal" },
 ];
 
 function createStorage(): Storage {
@@ -57,9 +57,10 @@ function clickFilter(name: "All" | "Active" | "Done"): void {
 }
 
 function visibleListTitles(): string[] {
-  return [...document.querySelectorAll("ul li span")].map(
-    (el) => el.textContent ?? "",
-  );
+  return [...document.querySelectorAll<HTMLLIElement>("ul li")].map((li) => {
+    const span = li.querySelector("span");
+    return span?.textContent ?? "";
+  });
 }
 
 function submitTaskTitle(title: string): void {
@@ -111,7 +112,7 @@ describe("task filters (logic)", () => {
     }
 
     const activeOnly = filterTasks(
-      [{ id: "d", title: "Done only", completed: true }],
+      [{ id: "d", title: "Done only", completed: true, priority: "normal" }],
       "active",
     );
     expect(activeOnly).toHaveLength(0);

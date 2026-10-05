@@ -11,8 +11,8 @@ function task(
   dueDate?: string,
 ): TaskWithDue {
   return dueDate === undefined
-    ? { id, title, completed }
-    : { id, title, completed, dueDate };
+    ? { id, title, completed, priority: "normal" }
+    : { id, title, completed, dueDate, priority: "normal" };
 }
 
 describe("task due dates (pure helpers)", () => {

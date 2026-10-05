@@ -5,9 +5,10 @@ import {
   shouldShowEmptyState,
   type TaskFilter,
 } from "./taskFilters";
-import { createTaskStore, type Task } from "./taskStore";
+import { formatPriorityLabel, sortTasksByPriority } from "./taskPriority";
+import { createTaskStore, type Task, type TaskPriority } from "./taskStore";
 
-type SortMode = "creation" | "due";
+type SortMode = "creation" | "due" | "priority";
 
 export function mountTaskApp(app: HTMLElement): void {
   const store = createTaskStore();
@@ -34,11 +35,34 @@ export function mountTaskApp(app: HTMLElement): void {
   addDueDateLabel.htmlFor = addDueDateInput.id;
   addDueDateLabel.textContent = "Due date";
 
+  const addPrioritySelect = document.createElement("select");
+  addPrioritySelect.id = "task-priority";
+  addPrioritySelect.setAttribute("aria-label", "Priority");
+  for (const [value, label] of [
+    ["low", "Low"],
+    ["normal", "Normal"],
+    ["high", "High"],
+  ] as const) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    if (value === "normal") {
+      option.selected = true;
+    }
+    addPrioritySelect.append(option);
+  }
+
   const addButton = document.createElement("button");
   addButton.type = "submit";
   addButton.textContent = "Add task";
 
-  form.append(taskInput, addDueDateLabel, addDueDateInput, addButton);
+  form.append(
+    taskInput,
+    addDueDateLabel,
+    addDueDateInput,
+    addPrioritySelect,
+    addButton,
+  );
 
   const filterBar = document.createElement("div");
   filterBar.setAttribute("role", "group");
@@ -80,7 +104,8 @@ export function mountTaskApp(app: HTMLElement): void {
 
   const sortCreation = makeSortButton("Creation order", "creation");
   const sortDue = makeSortButton("Due date", "due");
-  sortBar.append(sortCreation, sortDue);
+  const sortPriority = makeSortButton("Priority", "priority");
+  sortBar.append(sortCreation, sortDue, sortPriority);
 
   const list = document.createElement("ul");
   const emptyState = document.createElement("p");
@@ -91,9 +116,17 @@ export function mountTaskApp(app: HTMLElement): void {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const due = addDueDateInput.value.trim();
-    if (store.addTask(taskInput.value, due.length > 0 ? due : undefined)) {
+    const priority = addPrioritySelect.value as TaskPriority;
+    if (
+      store.addTask(
+        taskInput.value,
+        due.length > 0 ? due : undefined,
+        priority,
+      )
+    ) {
       taskInput.value = "";
       addDueDateInput.value = "";
+      addPrioritySelect.value = "normal";
     }
     render();
   });
@@ -114,6 +147,10 @@ export function mountTaskApp(app: HTMLElement): void {
       sortMode === "creation" ? "true" : "false",
     );
     sortDue.setAttribute("aria-pressed", sortMode === "due" ? "true" : "false");
+    sortPriority.setAttribute(
+      "aria-pressed",
+      sortMode === "priority" ? "true" : "false",
+    );
   }
 
   function renderTaskItem(task: Task): HTMLLIElement {
@@ -153,6 +190,22 @@ export function mountTaskApp(app: HTMLElement): void {
       editDueLabel.htmlFor = dueInput.id;
       editDueLabel.textContent = "Edit due date";
 
+      const editPrioritySelect = document.createElement("select");
+      editPrioritySelect.setAttribute("aria-label", "Edit priority");
+      for (const [value, label] of [
+        ["low", "Low"],
+        ["normal", "Normal"],
+        ["high", "High"],
+      ] as const) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        if (value === task.priority) {
+          option.selected = true;
+        }
+        editPrioritySelect.append(option);
+      }
+
       const clearDueButton = document.createElement("button");
       clearDueButton.type = "button";
       clearDueButton.textContent = "Clear due date";
@@ -169,6 +222,7 @@ export function mountTaskApp(app: HTMLElement): void {
           task.id,
           editInput.value,
           due.length > 0 ? due : undefined,
+          editPrioritySelect.value as TaskPriority,
         );
         editingId = null;
         render();
@@ -181,12 +235,22 @@ export function mountTaskApp(app: HTMLElement): void {
         editInput,
         editDueLabel,
         dueInput,
+        editPrioritySelect,
         clearDueButton,
         saveButton,
       );
     } else {
+      if (task.priority === "high") {
+        item.setAttribute("data-priority", "high");
+      }
+
       const titleSpan = document.createElement("span");
       titleSpan.textContent = task.title;
+
+      const priorityLabel = formatPriorityLabel(task.priority);
+      const priorityEl = document.createElement("small");
+      priorityEl.setAttribute("aria-label", `Priority ${priorityLabel}`);
+      priorityEl.textContent = priorityLabel;
 
       const editButton = document.createElement("button");
       editButton.type = "button";
@@ -205,7 +269,7 @@ export function mountTaskApp(app: HTMLElement): void {
         render();
       });
 
-      item.append(checkbox, titleSpan);
+      item.append(checkbox, titleSpan, priorityEl);
 
       if (task.dueDate) {
         const dueEl = document.createElement("time");
@@ -232,6 +296,8 @@ export function mountTaskApp(app: HTMLElement): void {
     let visible = filterTasks(store.getTasks(), filter);
     if (sortMode === "due") {
       visible = sortTasksByDueDate(visible);
+    } else if (sortMode === "priority") {
+      visible = sortTasksByPriority(visible);
     }
     list.replaceChildren(...visible.map(renderTaskItem));
 
