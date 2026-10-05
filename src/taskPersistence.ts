@@ -1,8 +1,14 @@
-import type { Task } from "./taskStore";
+import type { Task, TaskPriority } from "./taskStore";
 
 export const TASKS_STORAGE_KEY = "factory-target-web.tasks";
 
-function isTask(value: unknown): value is Task {
+const PRIORITIES: TaskPriority[] = ["low", "normal", "high"];
+
+function isTaskPriority(value: unknown): value is TaskPriority {
+  return typeof value === "string" && PRIORITIES.includes(value as TaskPriority);
+}
+
+function isStoredTask(value: unknown): value is Task {
   if (typeof value !== "object" || value === null) {
     return false;
   }
@@ -17,7 +23,17 @@ function isTask(value: unknown): value is Task {
   if (t.dueDate !== undefined && typeof t.dueDate !== "string") {
     return false;
   }
+  if (t.priority !== undefined && !isTaskPriority(t.priority)) {
+    return false;
+  }
   return true;
+}
+
+function normalizeTask(raw: Task): Task {
+  return {
+    ...raw,
+    priority: raw.priority ?? "normal",
+  };
 }
 
 export function loadTasks(): Task[] {
@@ -30,10 +46,10 @@ export function loadTasks(): Task[] {
     if (!Array.isArray(parsed)) {
       return [];
     }
-    if (!parsed.every(isTask)) {
+    if (!parsed.every(isStoredTask)) {
       return [];
     }
-    return parsed;
+    return parsed.map(normalizeTask);
   } catch {
     return [];
   }

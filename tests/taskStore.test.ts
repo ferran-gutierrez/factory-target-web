@@ -101,7 +101,7 @@ function submitTaskWithPriority(title: string, priority?: PriorityLabel): void {
   submitTaskTitle(title);
 }
 
-function rowPriorityLabel(item: HTMLLIElement): HTMLElement | null {
+function rowPriorityLabel(item: HTMLLIElement): Element | null {
   return (
     item.querySelector('[aria-label^="Priority"]') ??
     [...item.querySelectorAll("span, label")].find((el) =>

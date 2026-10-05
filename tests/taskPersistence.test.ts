@@ -84,8 +84,8 @@ describe("task persistence", () => {
 
   it("persists tasks in localStorage and restores titles and completion", () => {
     const tasks: Task[] = [
-      { id: "id-1", title: "First", completed: false },
-      { id: "id-2", title: "Second", completed: true },
+      { id: "id-1", title: "First", completed: false, priority: "normal" },
+      { id: "id-2", title: "Second", completed: true, priority: "normal" },
     ];
 
     saveTasks(tasks);
@@ -137,8 +137,14 @@ describe("task persistence", () => {
 
   it("REQ-11: persisted JSON includes optional dueDate when set", () => {
     const tasks: TaskWithDue[] = [
-      { id: "a", title: "With date", completed: false, dueDate: "2026-03-01" },
-      { id: "b", title: "Without", completed: false },
+      {
+        id: "a",
+        title: "With date",
+        completed: false,
+        dueDate: "2026-03-01",
+        priority: "normal",
+      },
+      { id: "b", title: "Without", completed: false, priority: "normal" },
     ];
 
     saveTasks(tasks);

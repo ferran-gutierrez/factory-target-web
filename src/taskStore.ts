@@ -1,17 +1,29 @@
 import { loadTasks, saveTasks } from "./taskPersistence";
 
+export type TaskPriority = "low" | "normal" | "high";
+
 export type Task = {
   id: string;
   title: string;
   completed: boolean;
   dueDate?: string;
+  priority: TaskPriority;
 };
 
 export type TaskStore = {
   getTasks: () => Task[];
-  addTask: (title: string, dueDate?: string) => boolean;
+  addTask: (
+    title: string,
+    dueDate?: string,
+    priority?: TaskPriority,
+  ) => boolean;
   updateTaskTitle: (id: string, title: string) => boolean;
-  updateTask: (id: string, title: string, dueDate?: string) => boolean;
+  updateTask: (
+    id: string,
+    title: string,
+    dueDate?: string,
+    priority?: TaskPriority,
+  ) => boolean;
   setTaskCompleted: (id: string, completed: boolean) => boolean;
   deleteTask: (id: string, confirmed: boolean) => boolean;
 };
@@ -25,6 +37,7 @@ function taskWithoutDueDate(task: Task): Task {
     id: task.id,
     title: task.title,
     completed: task.completed,
+    priority: task.priority,
   };
   return next;
 }
@@ -41,7 +54,7 @@ export function createTaskStore(): TaskStore {
       return tasks;
     },
 
-    addTask(title: string, dueDate?: string) {
+    addTask(title: string, dueDate?: string, priority: TaskPriority = "normal") {
       const trimmed = title.trim();
       if (trimmed.length === 0) {
         return false;
@@ -51,6 +64,7 @@ export function createTaskStore(): TaskStore {
         id: newId(),
         title: trimmed,
         completed: false,
+        priority,
       };
       if (dueTrimmed && dueTrimmed.length > 0) {
         task.dueDate = dueTrimmed;
@@ -70,7 +84,12 @@ export function createTaskStore(): TaskStore {
       return true;
     },
 
-    updateTask(id: string, title: string, dueDate?: string) {
+    updateTask(
+      id: string,
+      title: string,
+      dueDate?: string,
+      priority?: TaskPriority,
+    ) {
       const index = tasks.findIndex((t) => t.id === id);
       if (index === -1) {
         return false;
@@ -80,7 +99,11 @@ export function createTaskStore(): TaskStore {
         if (i !== index) {
           return t;
         }
-        const next: Task = { ...t, title };
+        const next: Task = {
+          ...t,
+          title,
+          priority: priority ?? t.priority,
+        };
         if (dueTrimmed && dueTrimmed.length > 0) {
           next.dueDate = dueTrimmed;
         } else {
