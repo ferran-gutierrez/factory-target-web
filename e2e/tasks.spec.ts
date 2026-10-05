@@ -98,73 +98,86 @@ test.describe("task list", () => {
     ).toBeVisible();
   });
 
-  test("REQ-14: due dates, overdue marking, due-date sort, and persistence across reload", async ({
+  test("REQ-3: due date labels, sort order, edit, clear, and persistence across reload", async ({
     page,
   }) => {
-    const taskInput = page.getByLabel("Task title");
-    const dueInput = page.locator('form[aria-label="Add task"] input[type="date"]');
+    const addForm = page.getByRole("form", { name: "Add task" });
+    const taskInput = addForm.getByLabel("Task title");
+    const dueInput = addForm.getByLabel("Due date");
     const addButton = page.getByRole("button", { name: "Add task" });
 
-    await taskInput.fill("Past due active");
-    await dueInput.fill("2000-01-15");
-    await addButton.click();
+    const laterTitle = "Task due 2099-06-01";
+    const earlierTitle = "Task due 2000-01-15";
 
-    await taskInput.fill("Due later");
+    await taskInput.fill(laterTitle);
     await dueInput.fill("2099-06-01");
     await addButton.click();
 
-    await taskInput.fill("No due date");
-    await dueInput.fill("");
+    await taskInput.fill(earlierTitle);
+    await dueInput.fill("2000-01-15");
     await addButton.click();
 
-    const pastItem = page
+    const laterItem = page.getByRole("listitem").filter({ hasText: laterTitle });
+    const earlierItem = page
       .getByRole("listitem")
-      .filter({ hasText: "Past due active" });
-    await expect(pastItem.getByText(/Overdue/i)).toBeVisible();
-    await expect(pastItem.getByLabel(/^Due date/)).toContainText("2000-01-15");
+      .filter({ hasText: earlierTitle });
 
-    const laterItem = page
-      .getByRole("listitem")
-      .filter({ hasText: "Due later" });
-    await expect(laterItem.getByText(/\bOverdue\b/i)).toHaveCount(0);
+    await expect(laterItem.getByText(/Overdue/i)).toHaveCount(0);
+    await expect(earlierItem.getByText(/Overdue/i)).toBeVisible();
     await expect(laterItem.getByLabel(/^Due date/)).toContainText("2099-06-01");
-
-    const noDueItem = page
-      .getByRole("listitem")
-      .filter({ hasText: "No due date" });
-    await expect(noDueItem.getByLabel(/^Due date/)).toHaveCount(0);
+    await expect(earlierItem.getByLabel(/^Due date/)).toContainText(
+      "2000-01-15",
+    );
 
     await page.getByRole("button", { name: "Due date", exact: true }).click();
 
-    const titlesAfterSort = await page.locator("ul li span").allTextContents();
-    expect(titlesAfterSort).toEqual([
-      "Past due active",
-      "Due later",
-      "No due date",
-    ]);
+    const titlesAfterDueSort = await page.locator("ul li span").allTextContents();
+    expect(titlesAfterDueSort.indexOf(earlierTitle)).toBeLessThan(
+      titlesAfterDueSort.indexOf(laterTitle),
+    );
+
+    await page
+      .getByRole("button", { name: "Creation order", exact: true })
+      .click();
+
+    const titlesAfterCreationSort = await page
+      .locator("ul li span")
+      .allTextContents();
+    expect(titlesAfterCreationSort.indexOf(laterTitle)).toBeLessThan(
+      titlesAfterCreationSort.indexOf(earlierTitle),
+    );
+
+    await laterItem.getByRole("button", { name: "Edit" }).click();
+    await laterItem.getByLabel("Edit due date").fill("2099-12-31");
+    await laterItem.getByRole("button", { name: "Save" }).click();
+    await expect(
+      page.getByRole("listitem").filter({ hasText: laterTitle }).getByLabel(/^Due date/),
+    ).toContainText("2099-12-31");
+
+    await earlierItem.getByRole("button", { name: "Edit" }).click();
+    await earlierItem.getByRole("button", { name: "Clear due date" }).click();
+    await earlierItem.getByRole("button", { name: "Save" }).click();
+    const clearedItem = page
+      .getByRole("listitem")
+      .filter({ hasText: earlierTitle });
+    await expect(clearedItem.getByLabel(/^Due date/)).toHaveCount(0);
 
     await page.reload();
 
-    const pastAfter = page
+    const laterAfter = page
       .getByRole("listitem")
-      .filter({ hasText: "Past due active" });
-    await expect(pastAfter.getByText(/Overdue/i)).toBeVisible();
-    await expect(pastAfter.getByLabel(/^Due date/)).toContainText("2000-01-15");
+      .filter({ hasText: laterTitle });
+    const earlierAfter = page
+      .getByRole("listitem")
+      .filter({ hasText: earlierTitle });
+
+    await expect(laterAfter.getByLabel(/^Due date/)).toContainText("2099-12-31");
+    await expect(earlierAfter.getByLabel(/^Due date/)).toHaveCount(0);
+    await expect(earlierAfter.getByText(/Overdue/i)).toHaveCount(0);
 
     await expect(
-      page.getByRole("listitem").filter({ hasText: "Due later" }).getByLabel(/^Due date/),
-    ).toContainText("2099-06-01");
-    await expect(
-      page
-        .getByRole("listitem")
-        .filter({ hasText: "No due date" })
-        .getByLabel(/^Due date/),
-    ).toHaveCount(0);
-
-    await expect(page.getByRole("button", { name: "Creation order", exact: true })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+      page.getByRole("button", { name: "Creation order", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 });
 
