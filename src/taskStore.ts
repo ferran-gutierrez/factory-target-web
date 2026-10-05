@@ -1,4 +1,8 @@
-import { loadTasks, saveTasks } from "./taskPersistence";
+import {
+  getLastLoadSkippedCount,
+  loadTasks,
+  saveTasks,
+} from "./taskPersistence";
 
 export type TaskPriority = "low" | "normal" | "high";
 
@@ -27,6 +31,7 @@ export type TaskStore = {
   setTaskCompleted: (id: string, completed: boolean) => boolean;
   deleteTask: (id: string, confirmed: boolean) => boolean;
   replaceTasks: (tasks: Task[]) => void;
+  getInitialSkippedCount: () => number;
 };
 
 function newId(): string {
@@ -45,6 +50,10 @@ function taskWithoutDueDate(task: Task): Task {
 
 export function createTaskStore(): TaskStore {
   let tasks: Task[] = loadTasks();
+  const initialSkippedCount = getLastLoadSkippedCount();
+  if (initialSkippedCount > 0) {
+    saveTasks(tasks);
+  }
 
   function persist(): void {
     saveTasks(tasks);
@@ -142,6 +151,10 @@ export function createTaskStore(): TaskStore {
     replaceTasks(next: Task[]) {
       tasks = next.map((t) => ({ ...t }));
       persist();
+    },
+
+    getInitialSkippedCount() {
+      return initialSkippedCount;
     },
   };
 }
