@@ -15,6 +15,10 @@ export function filterTasks(tasks: Task[], filter: TaskFilter): Task[] {
   }
 }
 
-export function shouldShowEmptyState(visibleCount: number): boolean {
-  return visibleCount === 0;
+export function shouldShowEmptyState(
+  _storedCount: number,
+  statusFilteredCount: number,
+  _searchQuery: string,
+): boolean {
+  return statusFilteredCount === 0;
 }
