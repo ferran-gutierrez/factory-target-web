@@ -9,6 +9,7 @@ import {
 } from "../src/taskPersistence";
 
 type TaskWithDue = Task & { dueDate?: string };
+type TaskWithPriority = Task & { priority?: "low" | "normal" | "high" };
 
 function createStorage(): Storage {
   const data = new Map<string, string>();
@@ -202,5 +203,77 @@ describe("task persistence", () => {
     expect(
       reloaded.querySelector('[aria-label^="Due date"]')?.textContent,
     ).toMatch(/1999-01-01/);
+  });
+
+  it("REQ-11: persisted JSON includes priority and reload restores each task priority", () => {
+    const select = (): HTMLSelectElement => {
+      const el = document.querySelector<HTMLSelectElement>(
+        'form[aria-label="Add task"] [aria-label="Priority"]',
+      );
+      if (!el) {
+        throw new Error("Add-task priority control not found");
+      }
+      return el;
+    };
+
+    const setPriority = (label: "Low" | "Normal" | "High"): void => {
+      const prioritySelect = select();
+      const option = [...prioritySelect.options].find(
+        (o) => o.textContent?.trim() === label,
+      );
+      if (!option) {
+        throw new Error(`Priority option "${label}" not found`);
+      }
+      prioritySelect.value = option.value;
+      prioritySelect.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+
+    const addWithPriority = (
+      title: string,
+      label: "Low" | "Normal" | "High",
+    ): void => {
+      setPriority(label);
+      submitTask(title);
+    };
+
+    mountFreshApp();
+    addWithPriority("High task", "High");
+    addWithPriority("Normal task", "Normal");
+    addWithPriority("Low task", "Low");
+
+    const raw = localStorage.getItem(TASKS_STORAGE_KEY);
+    expect(raw).toContain('"priority":"high"');
+    expect(raw).toContain('"priority":"normal"');
+    expect(raw).toContain('"priority":"low"');
+
+    mountFreshApp();
+
+    expect(listItemWithTitle("High task").textContent).toMatch(/High/);
+    expect(listItemWithTitle("Normal task").textContent).toMatch(/Normal/);
+    expect(listItemWithTitle("Low task").textContent).toMatch(/Low/);
+
+    const restored = loadTasks() as TaskWithPriority[];
+    expect(restored.find((t) => t.title === "High task")?.priority).toBe("high");
+    expect(restored.find((t) => t.title === "Normal task")?.priority).toBe(
+      "normal",
+    );
+    expect(restored.find((t) => t.title === "Low task")?.priority).toBe("low");
+  });
+
+  it("REQ-12: legacy tasks without priority field load as normal in store and UI", () => {
+    const legacy = [
+      { id: "legacy-1", title: "Old task", completed: false },
+      { id: "legacy-2", title: "Another old", completed: true },
+    ];
+    localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(legacy));
+
+    const loaded = loadTasks() as TaskWithPriority[];
+    expect(loaded).toHaveLength(2);
+    expect(loaded.every((t) => t.priority === "normal")).toBe(true);
+
+    mountFreshApp();
+
+    expect(listItemWithTitle("Old task").textContent).toMatch(/Normal/);
+    expect(listItemWithTitle("Another old").textContent).toMatch(/Normal/);
   });
 });

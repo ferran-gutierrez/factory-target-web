@@ -179,6 +179,32 @@ test.describe("task list", () => {
       page.getByRole("button", { name: "Creation order", exact: true }),
     ).toHaveAttribute("aria-pressed", "true");
   });
+
+  test("REQ-13: priority sort orders high before normal before low after mixed-priority adds", async ({
+    page,
+  }) => {
+    const addForm = page.getByRole("form", { name: "Add task" });
+    const taskInput = addForm.getByLabel("Task title");
+    const prioritySelect = addForm.getByLabel("Priority");
+    const addButton = page.getByRole("button", { name: "Add task" });
+
+    await taskInput.fill("Low first");
+    await prioritySelect.selectOption({ label: "Low" });
+    await addButton.click();
+
+    await taskInput.fill("High second");
+    await prioritySelect.selectOption({ label: "High" });
+    await addButton.click();
+
+    await taskInput.fill("Normal third");
+    await prioritySelect.selectOption({ label: "Normal" });
+    await addButton.click();
+
+    await page.getByRole("button", { name: "Priority", exact: true }).click();
+
+    const titles = await page.locator("ul li span").allTextContents();
+    expect(titles).toEqual(["High second", "Normal third", "Low first"]);
+  });
 });
 
 function gammaItem(page: import("@playwright/test").Page) {
