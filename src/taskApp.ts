@@ -152,7 +152,7 @@ export function mountTaskApp(app: HTMLElement): void {
   }
 
   const searchInput = document.createElement("input");
-  searchInput.type = "search";
+  searchInput.type = "text";
   searchInput.setAttribute("aria-label", "Search tasks");
   searchInput.addEventListener("input", () => {
     searchQuery = searchInput.value;
