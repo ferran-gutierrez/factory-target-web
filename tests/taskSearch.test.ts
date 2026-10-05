@@ -110,18 +110,6 @@ function submitTaskTitle(title: string): void {
   input.form?.requestSubmit();
 }
 
-function allLocalStorageValues(): string[] {
-  const storage = localStorage;
-  const values: string[] = [];
-  for (let i = 0; i < storage.length; i++) {
-    const key = storage.key(i);
-    if (key) {
-      values.push(storage.getItem(key) ?? "");
-    }
-  }
-  return values;
-}
-
 describe("task search — pure helpers", () => {
   it("REQ-2: case-insensitive substring match on title", () => {
     const matched = filterTasksBySearch(searchSampleTasks, "EGG");
@@ -204,9 +192,14 @@ describe("task search — UI", () => {
     expect(getSearchInput().value).toBe("eggs");
     expect(visibleListTitles()).toEqual(["Buy eggs"]);
 
-    for (const value of allLocalStorageValues()) {
-      expect(value.toLowerCase()).not.toContain("eggs");
+    const storageKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        storageKeys.push(key);
+      }
     }
+    expect(storageKeys).toEqual([TASKS_STORAGE_KEY]);
     expect(localStorage.getItem(TASKS_STORAGE_KEY)).toContain("Buy eggs");
 
     document.body.innerHTML = `<main id="app"></main>`;
