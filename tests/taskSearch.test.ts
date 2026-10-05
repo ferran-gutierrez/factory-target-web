@@ -265,8 +265,6 @@ describe("task search UI", () => {
     ]);
 
     vi.unstubAllGlobals();
-    vi.stubGlobal("localStorage", createStorage());
-    saveTasks(searchSampleTasks);
   });
 });
 
