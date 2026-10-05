@@ -380,6 +380,57 @@ test.describe("task list", () => {
     await assertImportedTasks();
   });
 
+  test("web-20261005-3qwh REQ-9: search filters list, no-match state, done filter, and reload", async ({
+    page,
+  }) => {
+    const addForm = page.getByRole("form", { name: "Add task" });
+    const taskInput = addForm.getByLabel("Task title");
+    const addButton = page.getByRole("button", { name: "Add task" });
+    const searchInput = page.getByLabel("Search tasks");
+
+    await taskInput.fill("Searchable One");
+    await addButton.click();
+    await taskInput.fill("Other task");
+    await addButton.click();
+
+    await searchInput.fill("Searchable");
+    await expect(page.getByRole("listitem")).toHaveCount(1);
+    await expect(page.getByText("Searchable One")).toBeVisible();
+    await expect(page.getByText("Other task")).not.toBeVisible();
+
+    await searchInput.fill("nomatch-query-xyz");
+    await expect(page.getByText("No tasks match")).toBeVisible();
+    await expect(page.locator("ul li")).toHaveCount(0);
+
+    await searchInput.fill("");
+    await expect(page.getByText("Searchable One")).toBeVisible();
+    await expect(page.getByText("Other task")).toBeVisible();
+
+    await page
+      .getByRole("listitem")
+      .filter({ hasText: "Searchable One" })
+      .getByRole("checkbox", { name: "Mark complete" })
+      .check();
+
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await searchInput.fill("Searchable");
+    await expect(page.getByText("Searchable One")).toBeVisible();
+    await expect(page.getByText("Other task")).not.toBeVisible();
+
+    await searchInput.fill("Other");
+    await expect(page.getByText("No tasks match")).toBeVisible();
+    await expect(page.getByText("Searchable One")).not.toBeVisible();
+
+    await page.reload();
+    await expect(searchInput).toHaveValue("");
+    await expect(page.getByRole("button", { name: "All", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByText("Searchable One")).toBeVisible();
+    await expect(page.getByText("Other task")).toBeVisible();
+  });
+
   test("REQ-13: priority sort orders high before normal before low after mixed-priority adds", async ({
     page,
   }) => {

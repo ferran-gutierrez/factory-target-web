@@ -2,7 +2,9 @@ import { isTaskOverdue, localCalendarDay, sortTasksByDueDate } from "./taskDates
 import {
   EMPTY_STATE_MESSAGE,
   filterTasks,
-  shouldShowEmptyState,
+  filterTasksBySearch,
+  NO_MATCH_MESSAGE,
+  normalizeSearchQuery,
   type TaskFilter,
 } from "./taskFilters";
 import { formatPriorityLabel, sortTasksByPriority } from "./taskPriority";
@@ -18,6 +20,7 @@ export function mountTaskApp(app: HTMLElement): void {
   const store = createTaskStore();
   let filter: TaskFilter = "all";
   let sortMode: SortMode = "creation";
+  let searchQuery = "";
   let editingId: string | null = null;
 
   const heading = document.createElement("h1");
@@ -145,9 +148,19 @@ export function mountTaskApp(app: HTMLElement): void {
     skipNotice.hidden = true;
   }
 
+  const searchInput = document.createElement("input");
+  searchInput.type = "search";
+  searchInput.id = "task-search";
+  searchInput.setAttribute("aria-label", "Search tasks");
+
   const list = document.createElement("ul");
   const emptyState = document.createElement("p");
   emptyState.hidden = true;
+
+  searchInput.addEventListener("input", () => {
+    searchQuery = searchInput.value;
+    render();
+  });
 
   app.replaceChildren(
     heading,
@@ -157,6 +170,7 @@ export function mountTaskApp(app: HTMLElement): void {
     importExportBar,
     importError,
     skipNotice,
+    searchInput,
     list,
     emptyState,
   );
@@ -406,7 +420,11 @@ export function mountTaskApp(app: HTMLElement): void {
   function render(): void {
     updateFilterButtons();
     updateSortButtons();
-    let visible = filterTasks(store.getTasks(), filter);
+    searchInput.value = searchQuery;
+    const stored = store.getTasks();
+    const trimmedSearch = normalizeSearchQuery(searchQuery);
+    let visible = filterTasks(stored, filter);
+    visible = filterTasksBySearch(visible, searchQuery);
     if (sortMode === "due") {
       visible = sortTasksByDueDate(visible);
     } else if (sortMode === "priority") {
@@ -414,11 +432,25 @@ export function mountTaskApp(app: HTMLElement): void {
     }
     list.replaceChildren(...visible.map(renderTaskItem));
 
-    const showEmpty = shouldShowEmptyState(visible.length);
-    emptyState.hidden = !showEmpty;
-    if (showEmpty) {
+    if (stored.length === 0) {
+      emptyState.hidden = false;
       emptyState.textContent = EMPTY_STATE_MESSAGE;
+      return;
     }
+
+    if (trimmedSearch.length > 0 && visible.length === 0) {
+      emptyState.hidden = false;
+      emptyState.textContent = NO_MATCH_MESSAGE;
+      return;
+    }
+
+    if (visible.length === 0) {
+      emptyState.hidden = false;
+      emptyState.textContent = EMPTY_STATE_MESSAGE;
+      return;
+    }
+
+    emptyState.hidden = true;
   }
 
   render();
