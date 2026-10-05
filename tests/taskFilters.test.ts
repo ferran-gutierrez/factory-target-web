@@ -150,6 +150,21 @@ describe("task app filters UI", () => {
     expect(document.body.textContent).not.toContain("Active two");
   });
 
+  it("web-20261005-ic34 REQ-5: with zero stored tasks and empty search, shows add-task empty state not No tasks match", () => {
+    vi.stubGlobal("localStorage", createStorage());
+    document.body.innerHTML = `<main id="app"></main>`;
+    mountTaskApp(document.querySelector("#app")!);
+
+    const search = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Search tasks"]',
+    );
+    expect(search?.value ?? "").toBe("");
+
+    const visible = document.querySelector("p:not([hidden])");
+    expect(visible?.textContent).toBe(EMPTY_STATE_MESSAGE);
+    expect(document.body.textContent).not.toContain("No tasks match");
+  });
+
   it("REQ-11: displays empty state in the app when filter shows zero tasks", () => {
     vi.stubGlobal("localStorage", createStorage());
     document.body.innerHTML = `<main id="app"></main>`;

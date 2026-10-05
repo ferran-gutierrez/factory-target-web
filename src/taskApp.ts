@@ -1,10 +1,11 @@
 import { isTaskOverdue, localCalendarDay, sortTasksByDueDate } from "./taskDates";
+import { EMPTY_STATE_MESSAGE, type TaskFilter } from "./taskFilters";
 import {
-  EMPTY_STATE_MESSAGE,
-  filterTasks,
-  shouldShowEmptyState,
-  type TaskFilter,
-} from "./taskFilters";
+  applyCompletionAndSearchFilters,
+  NO_TASKS_MATCH_MESSAGE,
+  shouldShowEmptyStateMessage,
+  shouldShowNoTasksMatchMessage,
+} from "./taskSearch";
 import { formatPriorityLabel, sortTasksByPriority } from "./taskPriority";
 import {
   parseImportTasks,
@@ -19,6 +20,7 @@ export function mountTaskApp(app: HTMLElement): void {
   let filter: TaskFilter = "all";
   let sortMode: SortMode = "creation";
   let editingId: string | null = null;
+  let searchQuery = "";
 
   const heading = document.createElement("h1");
   heading.textContent = "Factory Target Web";
@@ -145,6 +147,16 @@ export function mountTaskApp(app: HTMLElement): void {
     skipNotice.hidden = true;
   }
 
+  const searchInput = document.createElement("input");
+  searchInput.type = "search";
+  searchInput.setAttribute("aria-label", "Search tasks");
+  function syncSearchFromInput(): void {
+    searchQuery = searchInput.value;
+    render();
+  }
+  searchInput.addEventListener("input", syncSearchFromInput);
+  searchInput.addEventListener("change", syncSearchFromInput);
+
   const list = document.createElement("ul");
   const emptyState = document.createElement("p");
   emptyState.hidden = true;
@@ -157,6 +169,7 @@ export function mountTaskApp(app: HTMLElement): void {
     importExportBar,
     importError,
     skipNotice,
+    searchInput,
     list,
     emptyState,
   );
@@ -406,18 +419,36 @@ export function mountTaskApp(app: HTMLElement): void {
   function render(): void {
     updateFilterButtons();
     updateSortButtons();
-    let visible = filterTasks(store.getTasks(), filter);
+    const allTasks = store.getTasks();
+    let visible = applyCompletionAndSearchFilters(allTasks, filter, searchQuery);
     if (sortMode === "due") {
       visible = sortTasksByDueDate(visible);
     } else if (sortMode === "priority") {
       visible = sortTasksByPriority(visible);
     }
-    list.replaceChildren(...visible.map(renderTaskItem));
 
-    const showEmpty = shouldShowEmptyState(visible.length);
-    emptyState.hidden = !showEmpty;
-    if (showEmpty) {
+    const showNoMatch = shouldShowNoTasksMatchMessage(
+      allTasks.length,
+      searchQuery,
+      visible.length,
+    );
+    const showEmpty = shouldShowEmptyStateMessage(
+      allTasks.length,
+      searchQuery,
+      visible.length,
+    );
+
+    if (showNoMatch) {
+      list.replaceChildren();
+      emptyState.hidden = false;
+      emptyState.textContent = NO_TASKS_MATCH_MESSAGE;
+    } else if (showEmpty) {
+      list.replaceChildren();
+      emptyState.hidden = false;
       emptyState.textContent = EMPTY_STATE_MESSAGE;
+    } else {
+      list.replaceChildren(...visible.map(renderTaskItem));
+      emptyState.hidden = true;
     }
   }
 
