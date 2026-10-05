@@ -70,6 +70,66 @@ function submitTask(title: string, dueDate?: string): void {
   input.form?.requestSubmit();
 }
 
+type PriorityLabel = "Low" | "Normal" | "High";
+
+function getAddPrioritySelect(): HTMLSelectElement {
+  const select = document.querySelector<HTMLSelectElement>(
+    'form[aria-label="Add task"] [aria-label="Priority"]',
+  );
+  if (!select) {
+    throw new Error("Add-task priority control not found");
+  }
+  return select;
+}
+
+function setAddFormPriority(label: PriorityLabel): void {
+  const select = getAddPrioritySelect();
+  const option = [...select.options].find(
+    (o) => o.textContent?.trim() === label,
+  );
+  if (!option) {
+    throw new Error(`Priority option "${label}" not found`);
+  }
+  select.value = option.value;
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function submitTaskWithPriority(title: string, priority?: PriorityLabel): void {
+  if (priority !== undefined) {
+    setAddFormPriority(priority);
+  }
+  submitTaskTitle(title);
+}
+
+function rowPriorityLabel(item: HTMLLIElement): HTMLElement | null {
+  return (
+    item.querySelector('[aria-label^="Priority"]') ??
+    [...item.querySelectorAll("span, label")].find((el) =>
+      /^(Low|Normal|High)$/.test(el.textContent?.trim() ?? ""),
+    ) ??
+    null
+  );
+}
+
+function rowHasHighPriorityHighlight(item: HTMLLIElement): boolean {
+  return (
+    item.getAttribute("data-priority") === "high" ||
+    item.classList.contains("priority-high")
+  );
+}
+
+function selectSort(
+  label: "Creation order" | "Due date" | "Priority",
+): void {
+  const btn = [...document.querySelectorAll("button")].find(
+    (b) => b.textContent === label,
+  );
+  if (!btn) {
+    throw new Error(`Sort control "${label}" not found`);
+  }
+  btn.click();
+}
+
 function submitTaskTitle(title: string): void {
   submitTask(title);
 }
@@ -88,16 +148,6 @@ function visibleListTitlesInOrder(): string[] {
     const span = li.querySelector("span");
     return span?.textContent ?? "";
   });
-}
-
-function selectSort(label: "Creation order" | "Due date"): void {
-  const btn = [...document.querySelectorAll("button")].find(
-    (b) => b.textContent === label,
-  );
-  if (!btn) {
-    throw new Error(`Sort control "${label}" not found`);
-  }
-  btn.click();
 }
 
 describe("task store", () => {
@@ -324,5 +374,125 @@ describe("task app UI — core interactions (regression)", () => {
     expect(persisted).toHaveLength(1);
     expect(persisted[0]?.title).toBe("Keep me");
     expect(localStorage.getItem(TASKS_STORAGE_KEY)).toBeTruthy();
+  });
+});
+
+describe("task app UI — priority", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", createStorage());
+    mountFreshApp();
+  });
+
+  it("REQ-1: add form exposes Priority control defaulting to Normal with Low and High options", () => {
+    const select = getAddPrioritySelect();
+    expect(select.tagName).toBe("SELECT");
+
+    const labels = [...select.options].map((o) => o.textContent?.trim());
+    expect(labels).toEqual(["Low", "Normal", "High"]);
+
+    const selected = select.options[select.selectedIndex];
+    expect(selected?.textContent?.trim()).toBe("Normal");
+  });
+
+  it("REQ-2: default Normal priority on add stores and displays normal priority", () => {
+    submitTaskTitle("Default priority task");
+
+    const item = listItemWithTitle("Default priority task");
+    expect(item.textContent).toMatch(/Normal/);
+    expect(rowPriorityLabel(item)?.textContent?.trim()).toBe("Normal");
+
+    const stored = loadTasks();
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toEqual(
+      expect.objectContaining({
+        title: "Default priority task",
+        priority: "normal",
+      }),
+    );
+  });
+
+  it("REQ-3: choosing High or Low on add creates task with that priority", () => {
+    submitTaskWithPriority("Urgent work", "High");
+    submitTaskWithPriority("Nice to have", "Low");
+
+    expect(listItemWithTitle("Urgent work").textContent).toMatch(/High/);
+    expect(listItemWithTitle("Nice to have").textContent).toMatch(/Low/);
+
+    const stored = loadTasks();
+    expect(stored.find((t) => t.title === "Urgent work")).toEqual(
+      expect.objectContaining({ priority: "high" }),
+    );
+    expect(stored.find((t) => t.title === "Nice to have")).toEqual(
+      expect.objectContaining({ priority: "low" }),
+    );
+  });
+
+  it("REQ-4: edit priority control updates displayed priority after save", () => {
+    submitTaskTitle("Change me");
+    let item = listItemWithTitle("Change me");
+    [...item.querySelectorAll("button")]
+      .find((b) => b.textContent === "Edit")
+      ?.click();
+
+    item = listItemWithTitle("Change me");
+    const prioritySelect = item.querySelector<HTMLSelectElement>(
+      '[aria-label="Edit priority"]',
+    );
+    expect(prioritySelect).toBeTruthy();
+    const highOption = [...prioritySelect!.options].find(
+      (o) => o.textContent?.trim() === "High",
+    );
+    expect(highOption).toBeTruthy();
+    prioritySelect!.value = highOption!.value;
+    prioritySelect!.dispatchEvent(new Event("change", { bubbles: true }));
+    [...item.querySelectorAll("button")]
+      .find((b) => b.textContent === "Save")
+      ?.click();
+
+    item = listItemWithTitle("Change me");
+    expect(item.textContent).toMatch(/High/);
+    expect(
+      (loadTasks().find((t) => t.title === "Change me") as { priority?: string })
+        ?.priority,
+    ).toBe("high");
+  });
+
+  it("REQ-5: list row exposes current priority with accessible labeling", () => {
+    submitTaskWithPriority("Labeled", "Low");
+    const item = listItemWithTitle("Labeled");
+    const marker = rowPriorityLabel(item);
+    expect(marker).toBeTruthy();
+    const aria = marker?.getAttribute("aria-label");
+    if (aria) {
+      expect(aria).toMatch(/^Priority/);
+    }
+    expect(item.textContent).toMatch(/Low/);
+  });
+
+  it("REQ-6: high-priority row is visibly highlighted for tests", () => {
+    submitTaskWithPriority("Critical", "High");
+    const item = listItemWithTitle("Critical");
+    expect(rowHasHighPriorityHighlight(item)).toBe(true);
+  });
+
+  it("REQ-7: normal and low priority rows do not use high-priority highlight", () => {
+    submitTaskWithPriority("Routine", "Normal");
+    submitTaskWithPriority("Optional", "Low");
+
+    expect(rowHasHighPriorityHighlight(listItemWithTitle("Routine"))).toBe(
+      false,
+    );
+    expect(rowHasHighPriorityHighlight(listItemWithTitle("Optional"))).toBe(
+      false,
+    );
+  });
+
+  it("REQ-8: sort control offers Priority alongside Creation order and Due date", () => {
+    const sortLabels = [...document.querySelectorAll("button")]
+      .map((b) => b.textContent?.trim())
+      .filter((t) =>
+        ["Creation order", "Due date", "Priority"].includes(t ?? ""),
+      );
+    expect(sortLabels).toEqual(["Creation order", "Due date", "Priority"]);
   });
 });
