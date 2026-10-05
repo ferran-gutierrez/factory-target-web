@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mountTaskApp } from "../src/taskApp";
 import type { Task } from "../src/taskStore";
-import { EMPTY_STATE_MESSAGE, type TaskFilter } from "../src/taskFilters";
+import { EMPTY_STATE_MESSAGE } from "../src/taskFilters";
 import { saveTasks, TASKS_STORAGE_KEY } from "../src/taskPersistence";
 import {
   NO_TASKS_MATCH_MESSAGE,
