@@ -6,6 +6,10 @@ import {
   type TaskFilter,
 } from "./taskFilters";
 import { formatPriorityLabel, sortTasksByPriority } from "./taskPriority";
+import {
+  parseImportTasks,
+  serializeTasksForExport,
+} from "./taskImportExport";
 import { createTaskStore, type Task, type TaskPriority } from "./taskStore";
 
 type SortMode = "creation" | "due" | "priority";
@@ -107,11 +111,108 @@ export function mountTaskApp(app: HTMLElement): void {
   const sortPriority = makeSortButton("Priority", "priority");
   sortBar.append(sortCreation, sortDue, sortPriority);
 
+  const importExportBar = document.createElement("div");
+  importExportBar.setAttribute("role", "group");
+  importExportBar.setAttribute("aria-label", "Import and export tasks");
+
+  const exportButton = document.createElement("button");
+  exportButton.type = "button";
+  exportButton.textContent = "Export tasks";
+
+  const importButton = document.createElement("button");
+  importButton.type = "button";
+  importButton.textContent = "Import tasks";
+
+  const importFileInput = document.createElement("input");
+  importFileInput.type = "file";
+  importFileInput.accept = ".json,application/json";
+  importFileInput.hidden = true;
+
+  importExportBar.append(exportButton, importButton, importFileInput);
+
+  const importError = document.createElement("div");
+  importError.setAttribute("role", "alert");
+  importError.hidden = true;
+
   const list = document.createElement("ul");
   const emptyState = document.createElement("p");
   emptyState.hidden = true;
 
-  app.replaceChildren(heading, form, filterBar, sortBar, list, emptyState);
+  app.replaceChildren(
+    heading,
+    form,
+    filterBar,
+    sortBar,
+    importExportBar,
+    importError,
+    list,
+    emptyState,
+  );
+
+  function clearImportError(): void {
+    importError.hidden = true;
+    importError.textContent = "";
+  }
+
+  function showImportError(message: string): void {
+    importError.textContent = message;
+    importError.hidden = false;
+  }
+
+  exportButton.addEventListener("click", () => {
+    clearImportError();
+    const json = serializeTasksForExport(store.getTasks());
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "tasks.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  });
+
+  importButton.addEventListener("click", () => {
+    importFileInput.click();
+  });
+
+  importFileInput.addEventListener("change", () => {
+    const file = importFileInput.files?.[0];
+    importFileInput.value = "";
+    if (!file) {
+      return;
+    }
+    void file.text().then(
+      (text) => {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(text) as unknown;
+        } catch {
+          showImportError("Invalid import file: could not parse JSON.");
+          return;
+        }
+        const result = parseImportTasks(parsed);
+        if (!result.ok) {
+          showImportError(
+            "Invalid import file: tasks must be a JSON array of valid task objects.",
+          );
+          return;
+        }
+        const confirmed = window.confirm(
+          "Replace all tasks with the imported list?",
+        );
+        if (!confirmed) {
+          return;
+        }
+        clearImportError();
+        store.replaceTasks(result.tasks);
+        editingId = null;
+        render();
+      },
+      () => {
+        showImportError("Invalid import file: could not read the selected file.");
+      },
+    );
+  });
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
